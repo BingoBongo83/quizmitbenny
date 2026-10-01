@@ -112,10 +112,13 @@ async def handle_buzzer_message(ws: WebSocket, data: dict):
         db = SessionLocal()
         try:
             ok = game.audience_vote(db, voter, ans)
+            n = len(game.get_state()["audience_votes"]) if ok else 0
         finally:
             db.close()
         if ok:
-            await broadcast_state_and_serial()
+            # lightweight admin update only – a full state broadcast would
+            # re-render the scoreboard (and replay animations) per vote
+            await manager.broadcast("admin", {"type": "vote_count", "n": n})
         return
 
 

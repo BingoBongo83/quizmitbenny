@@ -322,6 +322,13 @@ if (!QuizSerial.supported()) {
 updateSerialUI();
 
 QuizWS.on("state", (m) => render(m.data));
+QuizWS.on("vote_count", (m) => {
+  // live vote counter without a full state broadcast (keeps board flicker-free)
+  if (lastState) {
+    lastState.audience_votes = m.n;
+    if (lastState.audience_voting) render(lastState);
+  }
+});
 QuizWS.on("open", () => (document.getElementById("wsDot").className = "dot ok"));
 QuizWS.on("close", () => {
   document.getElementById("wsDot").className = "dot off";

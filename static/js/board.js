@@ -9,6 +9,7 @@ let prevDouble = false;
 let prevArmed = false;
 let prevResult = false;
 let prevLocked = false;
+let lastBoardQid = null;
 let audio = null;
 
 // ---------- sound ----------
@@ -127,13 +128,16 @@ function render(state) {
     qbox.classList.remove("hidden");
     idle.classList.add("hidden");
     const q = state.question;
+    const aw = document.getElementById("answers");
+    // replay the slide-in only for a new question, not on state refreshes
+    aw.classList.toggle("no-anim", q.id === lastBoardQid);
+    lastBoardQid = q.id;
     document.getElementById("qmeta").innerHTML =
       `<span class="stars">${"★".repeat(q.skill)}${"☆".repeat(5 - q.skill)}</span>` +
       (q.category ? ` · ${esc(q.category)}` : "") +
       (state.double_active ? ` <span class="badge joker-active">2× PUNKTE</span>` : "") +
       (state.audience_voting ? ` <span class="badge joker-active">👥 Publikum stimmt ab…</span>` : "");
     document.getElementById("qtext").textContent = q.text;
-    const aw = document.getElementById("answers");
     aw.innerHTML = "";
     const hidden = state.fifty_hidden || [];
     const apct = state.audience_result || [];
@@ -159,6 +163,7 @@ function render(state) {
       aw.appendChild(d);
     });
   } else {
+    lastBoardQid = null;
     qbox.classList.add("hidden");
     idle.classList.remove("hidden");
     idle.textContent = state.game_started
