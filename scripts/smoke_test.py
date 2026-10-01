@@ -254,6 +254,32 @@ for pid in fids:
     assert j == {"fifty": False, "double": False, "audience": False}, (pid, j)
 print("OK Joker: Finalisten bekommen neue Joker")
 
+# --- question reporting ---
+# report the shown question: flagged + hidden, excluded from future picks
+game.skip_question(db)
+q, _ = game.show_question(db)
+assert q
+ok, err = game.report_question(db, "current")
+assert ok and q.reported
+assert game.get_state()["phase"] == "idle"
+db.refresh(q)
+assert q.reported
+# reported question is never picked again
+for _ in range(10):
+    qx, _sx = game.pick_question(db)
+    assert qx.id != q.id
+# report the pending preview question -> re-picked
+pid = game.get_state()["pending_question_id"]
+assert pid
+ok, err = game.report_question(db, "next")
+assert ok
+assert game.get_state()["pending_question_id"] != pid
+# reactivate -> eligible again
+db.refresh(q)
+q.reported = False
+db.commit()
+print("OK Melden: Frage aus Pool genommen, Reaktivierung möglich")
+
 # --- alternate config: 4 prerounds x 3 players = 12, semis need 6 ---
 db.query(RoundPlayer).delete(); db.query(Round).delete()
 db.query(Question).update({Question.used: False})

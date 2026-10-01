@@ -27,6 +27,7 @@ class Question(Base):
     category = Column(String(255), default="")
     used = Column(Boolean, default=False)
     used_round_id = Column(Integer, nullable=True)
+    reported = Column(Boolean, default=False)  # flagged by moderator, excluded from pools
 
     def answers(self):
         return [self.answer1, self.answer2, self.answer3, self.answer4]
@@ -39,6 +40,7 @@ class Question(Base):
             "skill": self.skill,
             "category": self.category,
             "used": self.used,
+            "reported": self.reported,
         }
         if reveal:
             d["correct"] = self.correct
@@ -69,6 +71,7 @@ class CustomQuestion(Base):
     skill = Column(Integer, nullable=False, default=1)  # 1-5
     used = Column(Boolean, default=False)
     used_round_id = Column(Integer, nullable=True)
+    reported = Column(Boolean, default=False)  # flagged by moderator, excluded from pools
 
     def answers(self):
         return [self.answer1, self.answer2, self.answer3, self.answer4]
@@ -81,6 +84,7 @@ class CustomQuestion(Base):
             "skill": self.skill,
             "category_id": self.category_id,
             "used": self.used,
+            "reported": self.reported,
         }
         if reveal:
             d["correct"] = self.correct

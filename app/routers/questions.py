@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ..auth import require_admin
 from ..db import get_db
-from ..models import Question
+from ..models import Category, CustomQuestion, Question
 
 router = APIRouter(prefix="/api/questions", dependencies=[Depends(require_admin)])
 
@@ -48,6 +48,44 @@ def list_questions(q: str | None = None, skill: int | None = None,
                  .offset(offset).limit(limit).all())
         return {"total": total, "items": [
             x.to_dict(reveal=True) | {"correct": x.correct} for x in items]}
+    finally:
+        db.close()
+
+
+@router.get("/reported")
+def list_reported():
+    """All reported questions from both pools, for the review UI."""
+    db = next(get_db())
+    try:
+        out = []
+        for q in db.query(Question).filter(Question.reported == True).all():
+            out.append(q.to_dict(reveal=True) | {
+                "correct": q.correct, "source": "q",
+                "pool": q.category or "Standard-Pool"})
+        for q in db.query(CustomQuestion).filter(
+                CustomQuestion.reported == True).all():
+            cat = db.get(Category, q.category_id)
+            out.append(q.to_dict(reveal=True) | {
+                "correct": q.correct, "source": "c",
+                "pool": f"Kategorie: {cat.name}" if cat else "Kategorie"})
+        out.sort(key=lambda x: x["id"], reverse=True)
+        return out
+    finally:
+        db.close()
+
+
+@router.post("/reported/{src}/{qid}/reactivate")
+def reactivate_reported(src: str, qid: int):
+    """Clear the reported flag -> question returns to its pool."""
+    db = next(get_db())
+    try:
+        model = CustomQuestion if src == "c" else Question
+        q = db.get(model, qid)
+        if not q:
+            raise HTTPException(404)
+        q.reported = False
+        db.commit()
+        return {"ok": True}
     finally:
         db.close()
 

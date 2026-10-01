@@ -38,6 +38,10 @@
       <span class="fn-title">Kategorien &amp; eigene Fragen</span>
       <span class="fn-sub" id="sub-cats">…</span>
     </button>
+    <button class="fn-card" data-modal="m-reported">
+      <span class="fn-title">Gemeldete Fragen</span>
+      <span class="fn-sub" id="sub-reported">…</span>
+    </button>
   </div>
 </div>
 
@@ -192,6 +196,31 @@
       </div>
       <table class="list" id="cqTable"></table>
     </div>
+    <div class="modal-foot">
+      <button class="modalClose">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="m-reported">
+  <div class="modal wide">
+    <h2>Gemeldete Fragen</h2>
+    <p class="muted" style="margin-bottom:10px">Vom Moderator gemeldete Fragen sind aus allen Pools genommen. Bearbeiten, dann aktivieren – oder löschen.</p>
+    <div id="rqEditForm" class="hidden" style="margin-bottom:12px">
+      <div class="player-row">
+        <input type="text" id="rq_text" placeholder="Fragetext" style="flex:1 1 100%">
+      </div>
+      <div class="player-row">
+        <input type="text" id="rq_a1" placeholder="Antwort 1 (richtig)">
+        <input type="text" id="rq_a2" placeholder="Antwort 2">
+        <input type="text" id="rq_a3" placeholder="Antwort 3">
+        <input type="text" id="rq_a4" placeholder="Antwort 4">
+        <select id="rq_skill"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+        <button class="primary" id="rq_save">Speichern</button>
+        <button id="rq_cancel">Abbrechen</button>
+      </div>
+    </div>
+    <table class="list" id="reportedTable"></table>
     <div class="modal-foot">
       <button class="modalClose">Schließen</button>
     </div>

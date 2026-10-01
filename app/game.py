@@ -445,26 +445,32 @@ def pick_question(db: Session):
         qs = (
             db.query(CustomQuestion)
             .filter(CustomQuestion.used == False,
+                    CustomQuestion.reported == False,
                     CustomQuestion.skill.in_(skills),
                     CustomQuestion.category_id == cat_id)
             .all()
         )
         if not qs:
             # category exhausted -> any unused custom question
-            qs = db.query(CustomQuestion).filter(CustomQuestion.used == False).all()
+            qs = db.query(CustomQuestion).filter(
+                CustomQuestion.used == False,
+                CustomQuestion.reported == False).all()
         if not qs:
             # last resort: standard pool
-            qs = db.query(Question).filter(Question.used == False).all()
+            qs = db.query(Question).filter(
+                Question.used == False, Question.reported == False).all()
             return (random.choice(qs), "q") if qs else (None, None)
         return random.choice(qs), "c"
 
     qs = (
         db.query(Question)
-        .filter(Question.used == False, Question.skill.in_(skills))
+        .filter(Question.used == False, Question.reported == False,
+                Question.skill.in_(skills))
         .all()
     )
     if not qs:
-        qs = db.query(Question).filter(Question.used == False).all()
+        qs = db.query(Question).filter(
+            Question.used == False, Question.reported == False).all()
     if not qs:
         return None, None
     return random.choice(qs), "q"
@@ -524,6 +530,42 @@ def skip_question(db: Session):
         })
         _ensure_pending_question(db)
         _persist_state(db)
+
+
+def report_question(db: Session, which: str = "current"):
+    """Moderator flags a question as broken -> excluded from all pools.
+    'current': the shown question is reported and hidden (no scoring).
+    'next': the previewed pending question is reported and re-picked."""
+    with _lock:
+        if which == "next":
+            qid = _state["pending_question_id"]
+            if not qid:
+                return False, "Keine Vorschau-Frage"
+            q = db.get(_model_for(_state.get("pending_source") or "q"), qid)
+            if q:
+                q.reported = True
+            _state["pending_question_id"] = None
+            _state["pending_source"] = None
+            db.commit()
+            _ensure_pending_question(db)
+            db.commit()
+            _persist_state(db)
+            return True, None
+        if not _state["question_id"]:
+            return False, "Keine aktive Frage"
+        q = db.get(_model_for(_state.get("question_source") or "q"),
+                   _state["question_id"])
+        if q:
+            q.reported = True
+        _state.update({
+            "phase": "idle", "question_id": None, "question_source": None,
+            "buzzed_slot": None, "picked_answer": None, "correct_answer": None,
+            "fifty_hidden": [], "double_active": False,
+            "audience_armed": False, "audience_pick": None,
+        })
+        db.commit()
+        _persist_state(db)
+        return True, None
 
 
 def use_joker(db: Session, kind: str):

@@ -36,6 +36,7 @@ const MODAL_REFRESH = {
   "m-rounds": () => loadRounds(),
   "m-questions": () => loadQuestions(),
   "m-cats": () => loadCategories(),
+  "m-reported": () => loadReported(),
 };
 function openModal(id) {
   document.getElementById(id).classList.remove("hidden");
@@ -434,6 +435,80 @@ async function loadQuestions() {
 }
 
 document.getElementById("qSearchBtn").onclick = () => { qPage = 0; loadQuestions(); };
+
+// ---------------- reported questions ----------------
+let rqEdit = null;  // {source: 'q'|'c', id, category_id}
+
+async function loadReported() {
+  const qs = await api("/api/questions/reported");
+  document.getElementById("sub-reported").textContent =
+    qs.length ? `${qs.length} gemeldet` : "keine";
+  window._rqs = qs;
+  document.getElementById("reportedTable").innerHTML =
+    `<tr><th>Frage</th><th>Pool</th><th>✓</th><th></th></tr>` +
+    (qs.map((x) => `<tr>
+      <td>${esc(x.text)}</td>
+      <td><span class="badge">${esc(x.pool)}</span></td>
+      <td>${"ABCD"[x.correct - 1]}</td>
+      <td style="white-space:nowrap">
+        <button class="rqedit" data-i="${qs.indexOf(x)}">edit</button>
+        <button class="rqreact primary" data-src="${x.source}" data-qid="${x.id}">Aktivieren</button>
+        <button class="rqdel danger" data-i="${qs.indexOf(x)}">×</button></td></tr>`).join("")
+     || '<tr><td class="muted" colspan="4">Keine gemeldeten Fragen</td></tr>');
+  document.querySelectorAll(".rqreact").forEach((b) => (b.onclick = async () => {
+    await api(`/api/questions/reported/${b.dataset.src}/${b.dataset.qid}/reactivate`, "POST");
+    rqEdit = null;
+    document.getElementById("rqEditForm").classList.add("hidden");
+    loadReported();
+  }));
+  document.querySelectorAll(".rqdel").forEach((b) => (b.onclick = async () => {
+    const x = window._rqs[+b.dataset.i];
+    if (!confirm("Frage endgültig löschen?")) return;
+    await api(x.source === "c"
+      ? `/api/categories/${x.category_id}/questions/${x.id}`
+      : `/api/questions/${x.id}`, "DELETE");
+    loadReported(); loadQuestions();
+  }));
+  document.querySelectorAll(".rqedit").forEach((b) => (b.onclick = () => {
+    const x = window._rqs[+b.dataset.i];
+    rqEdit = { source: x.source, id: x.id, category_id: x.category_id,
+               category: x.category || "" };
+    document.getElementById("rqEditForm").classList.remove("hidden");
+    document.getElementById("rq_text").value = x.text;
+    const correct = x.answers[x.correct - 1];
+    const wrong = x.answers.filter((_, i) => i !== x.correct - 1);
+    ["rq_a1", "rq_a2", "rq_a3", "rq_a4"].forEach((id, i) =>
+      (document.getElementById(id).value = i === 0 ? correct : wrong[i - 1] ?? ""));
+    document.getElementById("rq_skill").value = x.skill;
+    document.getElementById("rq_text").focus();
+  }));
+}
+
+document.getElementById("rq_save").onclick = async () => {
+  if (!rqEdit) return;
+  const body = {
+    text: document.getElementById("rq_text").value,
+    answer1: document.getElementById("rq_a1").value,
+    answer2: document.getElementById("rq_a2").value,
+    answer3: document.getElementById("rq_a3").value,
+    answer4: document.getElementById("rq_a4").value,
+    correct: 1, skill: +document.getElementById("rq_skill").value,
+  };
+  if (!body.text || !body.answer1) return alert("Frage + Antworten ausfüllen");
+  if (rqEdit.source === "c") {
+    await api(`/api/categories/${rqEdit.category_id}/questions/${rqEdit.id}`, "PUT", body);
+  } else {
+    body.category = rqEdit.category;
+    await api(`/api/questions/${rqEdit.id}`, "PUT", body);
+  }
+  rqEdit = null;
+  document.getElementById("rqEditForm").classList.add("hidden");
+  loadReported();
+};
+document.getElementById("rq_cancel").onclick = () => {
+  rqEdit = null;
+  document.getElementById("rqEditForm").classList.add("hidden");
+};
 document.getElementById("nq_cancel").onclick = () => {
   nqEditId = null;
   document.getElementById("nq_add").textContent = "+";
@@ -485,7 +560,7 @@ document.getElementById("resetUsed").onclick = async () => {
 
 // ---------------- init ----------------
 (async () => {
-  for (const fn of [loadSettings, loadPlayers, loadCategories, loadRounds, loadQuestions]) {
+  for (const fn of [loadSettings, loadPlayers, loadCategories, loadRounds, loadQuestions, loadReported]) {
     try { await fn(); } catch (e) { console.error(fn.name, "failed:", e); }
   }
   document.getElementById("s_ppr").onchange = loadPreview;

@@ -165,7 +165,14 @@ function render(st) {
   if (st.next_question) {
     nq.innerHTML = `<b>Nächste Frage (Vorschau):</b> ${esc(st.next_question.text)}<br>` +
       `<span class="muted">Richtig: ${LETTERS[st.next_question.correct - 1]} – ` +
-      `${esc(st.next_question.answers[st.next_question.correct - 1])} (Skill ${st.next_question.skill})</span>`;
+      `${esc(st.next_question.answers[st.next_question.correct - 1])} (Skill ${st.next_question.skill}) ` +
+      `<a href="#" id="reportNext" style="color:var(--red)">melden</a></span>`;
+    const rn = document.getElementById("reportNext");
+    if (rn) rn.onclick = (e) => {
+      e.preventDefault();
+      if (confirm("Vorschau-Frage melden und aus dem Pool nehmen?"))
+        post("/api/game/question/report", { which: "next" });
+    };
   } else {
     nq.textContent = "";
   }
@@ -207,6 +214,7 @@ function render(st) {
   document.getElementById("btnShow").disabled = !(st.round && (st.phase === "idle" || st.phase === "resolved"));
   document.getElementById("btnSkip").disabled = !(st.question);
   document.getElementById("btnHide").disabled = !(st.question);
+  document.getElementById("btnReport").disabled = !(st.question);
   document.getElementById("btnFinish").disabled = !(st.round && st.round.status === "active");
 
   // sounds on phase transitions (only if this host is the sound target)
@@ -225,6 +233,10 @@ function render(st) {
 document.getElementById("btnShow").onclick = () => post("/api/game/question/show");
 document.getElementById("btnSkip").onclick = () => post("/api/game/question/skip");
 document.getElementById("btnHide").onclick = () => post("/api/game/question/hide");
+document.getElementById("btnReport").onclick = () => {
+  if (confirm("Frage als fehlerhaft melden? Sie wird aus allen Pools genommen und ist in Einstellungen → Gemeldete Fragen sichtbar."))
+    post("/api/game/question/report", { which: "current" });
+};
 document.getElementById("btnFinish").onclick = () => {
   if (lastState && lastState.round && confirm("Runde wirklich beenden?"))
     post(`/api/game/round/${lastState.round.id}/finish`);

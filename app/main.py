@@ -35,6 +35,12 @@ def _migrate_columns():
         "rounds": {
             "question_pool": "VARCHAR(64) DEFAULT 'standard'",
         },
+        "questions": {
+            "reported": "BOOLEAN DEFAULT FALSE",
+        },
+        "custom_questions": {
+            "reported": "BOOLEAN DEFAULT FALSE",
+        },
     }
     for table, cols in wanted.items():
         if table not in insp.get_table_names():

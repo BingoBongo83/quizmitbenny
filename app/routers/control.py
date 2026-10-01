@@ -30,6 +30,10 @@ class JokerBody(BaseModel):
     kind: str  # 'fifty' | 'double' | 'audience'
 
 
+class ReportBody(BaseModel):
+    which: str = "current"  # 'current' | 'next'
+
+
 @router.post("/create")
 async def create_game(body: CreateGameBody, request: Request):
     from ..models import Player, get_all_settings
@@ -124,6 +128,20 @@ async def skip_question():
     db = next(get_db())
     try:
         game.skip_question(db)
+    finally:
+        db.close()
+    await broadcast_state_and_serial()
+    return {"ok": True}
+
+
+@router.post("/question/report")
+async def report_question(body: ReportBody):
+    """Flag the current or next-preview question as broken (excluded from pools)."""
+    db = next(get_db())
+    try:
+        ok, err = game.report_question(db, body.which)
+        if not ok:
+            raise HTTPException(400, err)
     finally:
         db.close()
     await broadcast_state_and_serial()
