@@ -77,7 +77,7 @@ function render(st) {
   const tbl = document.getElementById("curPlayers");
   const seatColors = (st.seat_colors && st.seat_colors.length) ? st.seat_colors : [];
   const jkEnabled = st.jokers_enabled || [];
-  const JICON = { fifty: "✂️", double: "⚡", audience: "👥" };
+  const JICON = { fifty: "50", double: "2×", audience: "👥" };
   const JTIP = { fifty: "50:50", double: "Doppelte Punkte", audience: "Publikumsjoker" };
   const jkChips = (p) => jkEnabled.map((k) =>
     `<span class="jchip ${(p.jokers || {})[k] ? "used" : ""}"
@@ -152,7 +152,7 @@ function render(st) {
         none.textContent = " keine übrig";
         jb.appendChild(none);
       }
-      const BTN_LABEL = { fifty: "✂️ 50:50", double: "⚡ 2× Punkte", audience: "👥 Publikum" };
+      const BTN_LABEL = { fifty: "50:50", double: "2× Punkte", audience: "👥 Publikum" };
       avail.forEach((k) => {
         const b = document.createElement("button");
         b.className = "joker-btn";
