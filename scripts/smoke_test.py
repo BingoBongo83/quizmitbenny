@@ -389,6 +389,8 @@ game.skip_question(db)
 q, err = game.show_question(db)  # cap reached, but tie -> Stichfrage
 assert q and not err
 assert game.get_state()["tiebreak_slots"] == [2, 3]
+# non-tied buzzers get the off-mask: slots 1,4,5 -> bits 0,3,4 = 25
+assert game.serial_commands_for_phase() == ["5", "9", "B 25"]
 assert game.buzzer_pressed(db, 1) == (1, False)  # non-tied may not buzz
 assert game.buzzer_pressed(db, 4) == (4, False)
 assert game.buzzer_pressed(db, 2)[1]

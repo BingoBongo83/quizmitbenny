@@ -49,7 +49,7 @@ async def ws_to_serial(ser, ws):
             continue
         if data.get("type") == "serial_cmd":
             for cmd in data.get("cmds", []):
-                if cmd in CMDS or cmd.startswith(("M ", "S ")):
+                if cmd in CMDS or cmd.startswith(("M ", "S ", "B ")):
                     await loop.run_in_executor(
                         None, ser.write, (cmd + "\n").encode()
                     )

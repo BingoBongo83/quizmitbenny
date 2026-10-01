@@ -817,9 +817,18 @@ def serial_commands_for_phase():
     phase = _state["phase"]
     blocked = _state["blocked_slots"][0] if _state["blocked_slots"] else None
     block_cmd = str(blocked - 1) if blocked else None
+    # Stichfrage: 'B <mask>' fades all non-participating buzzers out (~3 s)
+    # (new firmware command – harmless no-op on the musikquiz sketch)
+    off_cmd = None
+    tb = _state.get("tiebreak_slots")
+    if tb:
+        off_mask = sum(1 << (s - 1) for s in range(1, 6) if s not in tb)
+        off_cmd = f"B {off_mask}"
     if phase == "question":
         cmds = ["5"]  # reset
         cmds.append(block_cmd or "9")  # 0-based block | all active
+        if off_cmd:
+            cmds.append(off_cmd)
         return cmds
     if phase == "resolved":
         picked, correct = _state["picked_answer"], _state["correct_answer"]
@@ -831,6 +840,8 @@ def serial_commands_for_phase():
         cmds = ["5"]
         if block_cmd:
             cmds.append(block_cmd)
+        if off_cmd:
+            cmds.append(off_cmd)
         return cmds
     return []
 

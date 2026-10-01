@@ -15,8 +15,10 @@ Quiz-App mit Buzzern (Arduino) — Web-App auf eigenem Server.
   - `scripts/buzzer_bridge.py` auf dem Moderator-Rechner (beliebiger Browser)
 
 Arduino-Protokoll wie bei musikquiz: Arduino sendet Buzzer-Nummer (1–5) als Zeile;
-Server schickt `5` (Reset), `9` (alle aktiv), `0`–`4` (Slot gesperrt),
-`G` (richtig), `R` (falsch) zurück.
+Server schickt `5` (Reset), `9` (alle aktiv), `0`–`4` (Slot gesperrt, rot),
+`G` (richtig), `R` (falsch) zurück. Zusätzlich `B <mask>` (Bits 0–4): Buzzer
+faden in ~3 s aus und sind ignoriert (Stichfrage) – nur mit der Firmware
+`arduino/quizmitbenny_buzzer/`; bleibt kompatibel zu musikquiz.
 
 ## Spielablauf
 
