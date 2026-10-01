@@ -25,6 +25,15 @@ const SKILL_SETS = [
   ["skills_final", "Finale"],
 ];
 
+// ---------------- tabs ----------------
+document.querySelectorAll(".tab-btn").forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll(".tab-btn").forEach((x) => x.classList.toggle("active", x === b));
+    document.querySelectorAll(".tabpage").forEach((p) =>
+      p.classList.toggle("hidden", p.id !== "tab-" + b.dataset.tab));
+  };
+});
+
 let players = [];
 let settings = {};
 

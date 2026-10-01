@@ -392,6 +392,35 @@ nav.topnav a { color: var(--muted); text-decoration: none; font-weight: 600; let
 nav.topnav a.active, nav.topnav a:hover { color: var(--gold); }
 nav.topnav .spacer { flex: 1; }
 
+/* settings sub-tabs */
+.tabnav {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 0 auto 18px;
+}
+.tab-btn {
+  padding: 9px 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(120,135,200,.3);
+  background: var(--card);
+  color: var(--muted);
+  font-size: .95em;
+  font-weight: 700;
+  letter-spacing: .04em;
+  cursor: pointer;
+  transition: color .2s, border-color .2s, background .2s, box-shadow .2s;
+}
+.tab-btn:hover { color: var(--fg); border-color: rgba(120,135,200,.6); }
+.tab-btn.active {
+  color: #0b0f24;
+  background: linear-gradient(135deg, var(--gold), #ff9d3c);
+  border-color: transparent;
+  box-shadow: 0 0 22px rgba(255,190,60,.35);
+}
+.tabpage { animation: fadeUp .3s ease both; }
+
 .login-box {
   max-width: 380px; margin: 16vh auto; background: var(--card);
   border: 1px solid rgba(120,135,200,.2);
