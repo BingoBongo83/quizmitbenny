@@ -100,6 +100,9 @@ async def handle_buzzer_message(ws: WebSocket, data: dict):
             slot, ok = game.buzzer_pressed(db, num)
         finally:
             db.close()
+        logger.info("buzzer %s %s (phase=%s)",
+                    num, "accepted" if ok else "rejected",
+                    game.get_state()["phase"])
         if ok:
             await broadcast_state_and_serial()
         return

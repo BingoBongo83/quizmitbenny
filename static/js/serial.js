@@ -55,9 +55,9 @@ window.QuizSerial = (function () {
   }
 
   function handleLine(line) {
-    // Arduino sends the pressed buzzer number (1-5) as a line
+    // Arduino sends the pressed buzzer index 0-4 as a line -> slot = +1
     const n = parseInt(line, 10);
-    if (!isNaN(n)) QuizWS.send({ type: "buzzer", buzzer: n });
+    if (!isNaN(n)) QuizWS.send({ type: "buzzer", buzzer: n + 1 });
   }
 
   async function write(cmd) {

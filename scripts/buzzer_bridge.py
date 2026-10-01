@@ -34,8 +34,9 @@ async def serial_to_ws(ser, ws):
             line = buf.decode("utf-8", "ignore").strip()
             buf = b""
             if line.isdigit():
+                # Arduino sends 0-based buzzer index; server slots are 1-based
                 log.info("buzzer pressed: %s", line)
-                await ws.send(f'{{"type":"buzzer","buzzer":{int(line)}}}')
+                await ws.send(f'{{"type":"buzzer","buzzer":{int(line) + 1}}}')
 
 
 async def ws_to_serial(ser, ws):
