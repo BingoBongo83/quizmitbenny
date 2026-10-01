@@ -98,6 +98,22 @@ function render(st) {
   } else {
     cur.textContent = st.game_started ? "Keine aktive Runde" : "Spiel noch nicht gestartet";
   }
+  // question-limit progress bar
+  const qp = document.getElementById("qProgress");
+  const qmax = st.round ? st.round.questions_max : null;
+  const qasked = st.round ? (st.round.questions_asked || 0) : 0;
+  if (st.round && qmax) {
+    qp.classList.remove("hidden");
+    const fill = document.getElementById("qpFill");
+    fill.style.width = Math.min(100, (100 * qasked) / qmax) + "%";
+    fill.classList.toggle("full", qasked >= qmax);
+    document.getElementById("qpLabel").textContent =
+      `${qasked} / ${qmax} Fragen` +
+      (qasked >= qmax ? " – Limit erreicht, Runde beenden" : "");
+  } else {
+    qp.classList.add("hidden");
+  }
+
   const tbl = document.getElementById("curPlayers");
   const seatColors = (st.seat_colors && st.seat_colors.length) ? st.seat_colors : [];
   const jkEnabled = st.jokers_enabled || [];
@@ -259,7 +275,9 @@ function render(st) {
   const allPending = st.game_started && st.rounds.length &&
     st.rounds.every((r) => r.status === "pending");
   document.getElementById("btnStart").disabled = !(allPending && !st.round);
-  document.getElementById("btnShow").disabled = !(st.round && (st.phase === "idle" || st.phase === "resolved"));
+  document.getElementById("btnShow").disabled =
+    !(st.round && (st.phase === "idle" || st.phase === "resolved")
+      && !(qmax && qasked >= qmax));
   document.getElementById("btnSkip").disabled = !(st.question);
   document.getElementById("btnHide").disabled = !(st.question);
   document.getElementById("btnReport").disabled = !(st.question);

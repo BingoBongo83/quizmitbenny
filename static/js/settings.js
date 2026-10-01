@@ -147,6 +147,9 @@ async function loadSettings() {
   document.getElementById("s_pwo").value = settings.points_wrong_others;
   document.getElementById("s_block").checked = settings.block_on_wrong;
   document.getElementById("s_lockin").checked = settings.answer_lockin !== false;
+  document.getElementById("s_maxq_on").checked = !!settings.max_questions_enabled;
+  document.getElementById("s_maxq").value = settings.max_questions || 20;
+  document.getElementById("s_maxq").disabled = !settings.max_questions_enabled;
   document.getElementById("s_sound").value = settings.sound_target || "board";
   document.getElementById("s_jfifty").checked = settings.joker_fifty !== false;
   document.getElementById("s_jdouble").checked = settings.joker_double !== false;
@@ -154,7 +157,8 @@ async function loadSettings() {
 
   document.getElementById("sub-game").textContent =
     `${settings.players_per_round}/Runde · ${settings.num_prerounds} Vorrunden · ` +
-    `+${settings.points_correct}/${settings.points_wrong_self}/+${settings.points_wrong_others}`;
+    `+${settings.points_correct}/${settings.points_wrong_self}/+${settings.points_wrong_others}` +
+    (settings.max_questions_enabled ? ` · max ${settings.max_questions} Fr.` : "");
   document.getElementById("sub-skills").textContent =
     SKILL_SETS.map(([k, l]) => `${l}: ${(settings[k] || []).join("-")}`).join(" · ");
 
@@ -193,6 +197,8 @@ async function saveAllSettings(btn) {
     points_wrong_others: +document.getElementById("s_pwo").value,
     block_on_wrong: document.getElementById("s_block").checked,
     answer_lockin: document.getElementById("s_lockin").checked,
+    max_questions_enabled: document.getElementById("s_maxq_on").checked,
+    max_questions: +document.getElementById("s_maxq").value || 20,
     sound_target: document.getElementById("s_sound").value,
     joker_fifty: document.getElementById("s_jfifty").checked,
     joker_double: document.getElementById("s_jdouble").checked,
@@ -567,4 +573,6 @@ document.getElementById("resetUsed").onclick = async () => {
   }
   document.getElementById("s_ppr").onchange = loadPreview;
   document.getElementById("s_pre").onchange = loadPreview;
+  document.getElementById("s_maxq_on").onchange = (e) =>
+    (document.getElementById("s_maxq").disabled = !e.target.checked);
 })();

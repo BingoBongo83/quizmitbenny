@@ -38,6 +38,8 @@ class SettingsBody(BaseModel):
     joker_double: bool | None = None
     joker_audience: bool | None = None
     answer_lockin: bool | None = None
+    max_questions_enabled: bool | None = None
+    max_questions: int | None = None
     skills_preround: list[int] | None = None
     skills_playoff: list[int] | None = None
     skills_semifinal: list[int] | None = None
@@ -121,6 +123,8 @@ def update_settings(body: SettingsBody):
             raise HTTPException(400, "Vorrunden muss 3-5 sein")
         if "sound_target" in data and data["sound_target"] not in ("board", "admin", "both"):
             raise HTTPException(400, "Ungültiges Sound-Ziel")
+        if "max_questions" in data and not 1 <= data["max_questions"] <= 200:
+            raise HTTPException(400, "Max. Fragen muss 1-200 sein")
         if "seat_colors" in data:
             import re
             if not data["seat_colors"] or not all(

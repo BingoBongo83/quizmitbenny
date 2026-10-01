@@ -146,6 +146,9 @@ DEFAULT_SETTINGS = {
     "joker_audience": True,
     # moderator lock-in ("eingeloggt") before judging; audience joker always locks
     "answer_lockin": True,
+    # per-round question cap: moderator must finish the round when reached
+    "max_questions_enabled": False,
+    "max_questions": 20,
     "skills_preround": [1, 2, 3],
     "skills_playoff": [3, 4],
     "skills_semifinal": [3, 4, 5],

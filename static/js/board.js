@@ -141,10 +141,8 @@ function render(state) {
     aw.classList.toggle("no-anim", q.id === lastBoardQid);
     lastBoardQid = q.id;
     document.getElementById("qmeta").innerHTML =
-      `<span class="stars">${"★".repeat(q.skill)}${"☆".repeat(5 - q.skill)}</span>` +
-      (q.category ? ` · ${esc(q.category)}` : "") +
-      (state.double_active ? ` <span class="badge joker-active">2× PUNKTE</span>` : "") +
-      (state.audience_voting ? ` <span class="badge joker-active">👥 Publikum stimmt ab…</span>` : "");
+      (state.double_active ? `<span class="badge joker-active">2× PUNKTE</span>` : "") +
+      (state.audience_voting ? `<span class="badge joker-active">👥 Publikum stimmt ab…</span>` : "");
     document.getElementById("qtext").textContent = q.text;
     aw.innerHTML = "";
     const hidden = state.fifty_hidden || [];

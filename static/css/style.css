@@ -400,6 +400,22 @@ h1, h2, h3 { font-weight: 700; }
 .badge.finished { background: rgba(20,80,45,.6); border-color: rgba(46,229,111,.4); }
 
 .statusline { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+
+/* question-limit progress bar (moderator) */
+#qProgress { margin: 8px 0; }
+.qp-bar {
+  height: 10px; border-radius: 999px;
+  background: rgba(11,15,36,.8);
+  border: 1px solid rgba(120,135,200,.25);
+  overflow: hidden;
+}
+.qp-fill {
+  height: 100%; width: 0;
+  background: linear-gradient(90deg, #4f7cff, #7a4fff);
+  transition: width .4s ease;
+}
+.qp-fill.full { background: linear-gradient(90deg, #ffbe3c, #ff8c1a); }
+.qp-label { font-size: .82em; margin-top: 4px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 .dot.ok { background: var(--green); box-shadow: 0 0 10px var(--green); }
 .dot.off { background: var(--red); box-shadow: 0 0 10px var(--red); }

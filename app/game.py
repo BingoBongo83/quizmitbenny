@@ -489,9 +489,29 @@ def _ensure_pending_question(db: Session):
         _state["pending_source"] = src
 
 
+def questions_asked(db: Session, round_id: int) -> int:
+    """Questions already shown in this round (standard + custom pools)."""
+    n = db.query(Question).filter(Question.used_round_id == round_id).count()
+    n += db.query(CustomQuestion).filter(
+        CustomQuestion.used_round_id == round_id).count()
+    return n
+
+
+def max_questions(db: Session) -> int | None:
+    """Configured per-round question cap, or None when disabled."""
+    if get_setting(db, "max_questions_enabled"):
+        return get_setting(db, "max_questions") or 20
+    return None
+
+
 def show_question(db: Session):
     """Moderator: show next question on the board and arm buzzers."""
     with _lock:
+        rnd = db.get(Round, _state["round_id"]) if _state["round_id"] else None
+        cap = max_questions(db)
+        if rnd and cap and questions_asked(db, rnd.id) >= cap:
+            return None, (f"Fragen-Limit erreicht ({cap}) – "
+                          "bitte die Runde beenden.")
         q, src = None, None
         if _state["pending_question_id"]:
             src = _state.get("pending_source") or "q"
@@ -822,6 +842,8 @@ def board_state(db: Session) -> dict:
             "status": rnd.status,
             "question_pool": rnd.question_pool or "standard",
             "pool_label": pool_label,
+            "questions_asked": questions_asked(db, rnd.id),
+            "questions_max": max_questions(db),
         } if rnd else None,
         "players": players,
         "question": question,
