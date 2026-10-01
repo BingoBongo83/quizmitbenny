@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Quiz – Einstellungen{% endblock %}
+{% block content %}
+<nav class="topnav">
+  <a href="/admin">Moderator</a>
+  <a href="/einstellungen" class="active">Einstellungen</a>
+  <a href="/board" target="_blank">Scoreboard</a>
+  <span class="spacer"></span>
+  <a href="/logout">Abmelden</a>
+</nav>
+<div class="settings-wrap">
+  <div class="settings-grid">
+
+    <div class="panel">
+      <h2>Spieler</h2>
+      <div id="playerList"></div>
+      <div class="player-row">
+        <input type="text" id="newPlayerName" placeholder="Name">
+        <button id="addPlayer">Hinzufügen</button>
+      </div>
+      <p class="muted" style="margin-top:10px">Aktive Spieler werden ins Spiel übernommen.</p>
+      <div class="btnrow">
+        <button class="primary" id="createGameShuffle">Spiel erstellen (gemischt)</button>
+        <button id="createGameOrder">Spiel erstellen (Reihenfolge)</button>
+      </div>
+      <div class="btnrow">
+        <button class="danger" id="resetGame">Spiel zurücksetzen</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Spiel-Einstellungen</h2>
+      <label class="field">Spieler pro Runde (3–5)</label>
+      <select id="s_ppr"><option>3</option><option>4</option><option>5</option></select>
+      <label class="field">Vorrunden (3–5)</label>
+      <select id="s_pre"><option>3</option><option>4</option><option>5</option></select>
+      <label class="field">Punkte richtig</label>
+      <input type="number" id="s_pc" value="2">
+      <label class="field">Punkte falsch (eigener)</label>
+      <input type="number" id="s_pws" value="0">
+      <label class="field">Punkte falsch (alle anderen)</label>
+      <input type="number" id="s_pwo" value="2">
+      <label class="field"><input type="checkbox" id="s_block" checked> Sperre nach falscher Antwort (nächste Frage)</label>
+      <div class="btnrow"><button class="primary" id="saveSettings">Speichern</button></div>
+    </div>
+
+    <div class="panel">
+      <h2>Schwierigkeitsgrade pro Runde</h2>
+      <div id="skillSets"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Turnier-Vorschau</h2>
+      <div id="preview" class="muted">Spieleranzahl wählen …</div>
+    </div>
+
+    <div class="panel full">
+      <h2>Runden-Zuordnung</h2>
+      <div id="roundAssign" class="muted">Noch kein Spiel erstellt.</div>
+    </div>
+
+    <div class="panel full">
+      <h2>Fragen</h2>
+      <div class="btnrow" style="margin-bottom:10px">
+        <input type="text" id="qSearch" placeholder="Suche …">
+        <select id="qSkillFilter"><option value="">alle Skills</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+        <button id="qSearchBtn">Suchen</button>
+        <button id="qSeedBtn">OpenTriviaDB importieren (+DeepL)</button>
+        <input type="file" id="qImport" accept=".json,.csv" style="display:none">
+        <button onclick="document.getElementById('qImport').click()">CSV/JSON importieren</button>
+        <button class="danger" id="resetUsed">Genutzte zurücksetzen</button>
+      </div>
+      <div class="player-row">
+        <input type="text" id="nq_text" placeholder="Fragetext" style="flex:3">
+        <input type="text" id="nq_a1" placeholder="Antwort 1 (richtig)">
+        <input type="text" id="nq_a2" placeholder="Antwort 2">
+        <input type="text" id="nq_a3" placeholder="Antwort 3">
+        <input type="text" id="nq_a4" placeholder="Antwort 4">
+        <select id="nq_skill"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+        <button id="nq_add">+</button>
+      </div>
+      <table class="list" id="questionTable"></table>
+    </div>
+
+  </div>
+</div>
+<script src="/static/js/settings.js"></script>
+{% endblock %}

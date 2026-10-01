@@ -1,0 +1,228 @@
+:root {
+  --bg: #0b0e1a;
+  --bg2: #131830;
+  --card: #1b2140;
+  --card2: #232a52;
+  --accent: #4f7cff;
+  --accent2: #ffb02e;
+  --green: #2ecc71;
+  --red: #e74c3c;
+  --text: #eef1ff;
+  --muted: #8a92b8;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: radial-gradient(1200px 800px at 50% -10%, #1a2150 0%, var(--bg) 60%);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 10px;
+  padding: 0.55em 1.1em;
+  background: var(--card2);
+  color: var(--text);
+}
+button:hover { background: #2d366b; }
+button.primary { background: var(--accent); }
+button.primary:hover { background: #3d68e0; }
+button.danger { background: #5a2020; }
+button.danger:hover { background: #7a2b2b; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+input, select {
+  font: inherit;
+  background: var(--bg2);
+  border: 1px solid #333c70;
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.45em 0.7em;
+}
+
+h1, h2, h3 { font-weight: 600; }
+.muted { color: var(--muted); }
+.hidden { display: none !important; }
+
+/* ============ BOARD ============ */
+.board {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 2vh 3vw;
+}
+.board-header {
+  text-align: center;
+  margin-bottom: 1vh;
+}
+.board-header .round-label {
+  font-size: 2.4vh;
+  color: var(--accent2);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.board-players {
+  display: flex;
+  gap: 1.5vw;
+  justify-content: center;
+  margin-bottom: 2vh;
+}
+.player-card {
+  background: var(--card);
+  border: 3px solid transparent;
+  border-radius: var(--radius);
+  padding: 1.5vh 1vw;
+  min-width: 15vw;
+  text-align: center;
+  transition: all 0.2s;
+}
+.player-card .pname { font-size: 3.2vh; font-weight: 600; }
+.player-card .pscore { font-size: 5vh; font-weight: 700; color: var(--accent2); }
+.player-card.buzzed {
+  border-color: var(--accent2);
+  box-shadow: 0 0 40px rgba(255, 176, 46, 0.5);
+  animation: pulse 0.8s infinite alternate;
+}
+.player-card.blocked { opacity: 0.35; border-color: var(--red); }
+.player-card .slot-dot {
+  display: inline-block;
+  width: 0.8em; height: 0.8em;
+  border-radius: 50%;
+  margin-right: 0.3em;
+}
+@keyframes pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.04); }
+}
+
+.board-question {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 3vh 3vw;
+}
+.board-question .qtext {
+  font-size: 4.2vh;
+  text-align: center;
+  margin-bottom: 3vh;
+  line-height: 1.3;
+}
+.board-question .qmeta {
+  text-align: center;
+  color: var(--muted);
+  font-size: 2vh;
+  margin-bottom: 2vh;
+}
+.answers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2vh 2vw;
+}
+.answer {
+  background: var(--card2);
+  border: 3px solid transparent;
+  border-radius: var(--radius);
+  padding: 2.2vh 1.5vw;
+  font-size: 3vh;
+  display: flex;
+  align-items: center;
+  gap: 1em;
+}
+.answer .letter {
+  font-weight: 700;
+  color: var(--accent2);
+  font-size: 3.4vh;
+}
+.answer.correct { border-color: var(--green); background: #16402b; }
+.answer.wrong { border-color: var(--red); background: #45191e; }
+.board-idle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 5vh;
+  color: var(--muted);
+}
+
+/* ============ ADMIN ============ */
+.admin-wrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+.admin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.panel {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+}
+.panel h2 { font-size: 1.05em; color: var(--accent2); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+.panel.full { grid-column: 1 / -1; }
+
+.admin-players td, .admin-players th { padding: 6px 10px; text-align: left; }
+.admin-players tr.buzzed td { color: var(--accent2); font-weight: 700; }
+.admin-players tr.blocked td { color: var(--red); opacity: 0.6; }
+
+.answer-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.answer-btns button { text-align: left; font-size: 1.05em; padding: 14px; }
+.answer-btns button .letter { color: var(--accent2); font-weight: 700; margin-right: 8px; }
+.answer-btns button.reveal-correct { border: 2px solid var(--green); }
+.answer-btns button.reveal-wrong { border: 2px solid var(--red); }
+
+.btnrow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.qtext-admin { font-size: 1.3em; line-height: 1.35; margin: 8px 0; }
+.next-q { color: var(--muted); font-size: 0.95em; margin-top: 8px; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 0.8em;
+  background: var(--card2);
+}
+.badge.active { background: var(--accent); }
+.badge.finished { background: #2a4a2f; }
+
+.statusline { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.dot.ok { background: var(--green); }
+.dot.off { background: var(--red); }
+
+/* ============ SETTINGS ============ */
+.settings-wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+label.field { display: block; margin: 10px 0 4px; color: var(--muted); font-size: 0.9em; }
+.skill-cb { display: inline-flex; gap: 6px; align-items: center; margin-right: 14px; }
+.player-row { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
+.player-row input[type=text] { flex: 1; }
+table.list { width: 100%; border-collapse: collapse; }
+table.list td, table.list th { padding: 5px 8px; border-bottom: 1px solid #2a3160; text-align: left; font-size: 0.95em; }
+
+nav.topnav {
+  display: flex; gap: 16px; padding: 10px 20px;
+  background: var(--bg2); margin-bottom: 10px;
+}
+nav.topnav a { color: var(--muted); text-decoration: none; }
+nav.topnav a.active, nav.topnav a:hover { color: var(--text); }
+nav.topnav .spacer { flex: 1; }
+
+.login-box {
+  max-width: 360px; margin: 15vh auto; background: var(--card);
+  padding: 30px; border-radius: var(--radius); text-align: center;
+}
+.login-box input { width: 100%; margin: 14px 0; }
+.login-box button { width: 100%; }
+.login-box .error { color: var(--red); margin-top: 10px; }

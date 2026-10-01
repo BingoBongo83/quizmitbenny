@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Quiz – Moderator{% endblock %}
+{% block channel %}admin{% endblock %}
+{% block content %}
+<nav class="topnav">
+  <a href="/admin" class="active">Moderator</a>
+  <a href="/einstellungen">Einstellungen</a>
+  <a href="/board" target="_blank">Scoreboard</a>
+  <span class="spacer"></span>
+  <a href="/logout">Abmelden</a>
+</nav>
+<div class="admin-wrap">
+  <div class="statusline" style="margin-bottom:14px">
+    <span><span class="dot" id="wsDot"></span>Verbindung</span>
+    <span><span class="dot" id="serialDot"></span>Buzzer-Hardware</span>
+    <button id="serialBtn">Buzzer verbinden (Web Serial)</button>
+    <span class="badge" id="phaseBadge">idle</span>
+  </div>
+
+  <div class="admin-grid">
+    <div class="panel">
+      <h2>Aktuelle Runde</h2>
+      <div id="curRound" class="muted">Keine Runde aktiv</div>
+      <table class="admin-players list" id="curPlayers"></table>
+      <div class="btnrow">
+        <button class="primary" id="btnShow">Frage zeigen</button>
+        <button id="btnSkip">Frage überspringen</button>
+        <button id="btnHide">Ausblenden</button>
+        <button class="danger" id="btnFinish">Runde beenden</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Aktuelle Frage</h2>
+      <div id="curQ" class="muted">–</div>
+      <div class="qtext-admin" id="curQText"></div>
+      <div class="answer-btns" id="answerBtns"></div>
+      <div class="next-q" id="nextQ"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Runden</h2>
+      <div id="roundsList"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Vorherige Fragen</h2>
+      <div id="prevQs" class="muted">–</div>
+    </div>
+  </div>
+</div>
+<script src="/static/js/ws.js"></script>
+<script src="/static/js/serial.js"></script>
+<script src="/static/js/admin.js"></script>
+{% endblock %}

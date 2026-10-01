@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pymysql
+jinja2
+python-multipart
+itsdangerous
+httpx
+websockets
+pyserial

@@ -1,0 +1,105 @@
+"""E2E test: login via HTTP, drive a full question cycle, verify WS broadcasts."""
+import asyncio
+import json
+import sys
+
+import httpx
+import websockets
+
+BASE = "http://localhost:8765"
+WS = "ws://localhost:8765"
+PW = "changeme"
+
+
+async def main():
+    async with httpx.AsyncClient(base_url=BASE) as client:
+        r = await client.post("/login", data={"password": PW})
+        assert r.status_code in (200, 303), r.status_code
+
+        # create 4 players + questions
+        ids = []
+        for i in range(4):
+            r = await client.post("/api/settings/players", json={"name": f"P{i+1}"})
+            ids.append(r.json()["id"])
+        for i in range(6):
+            await client.post("/api/questions", json={
+                "text": f"Q{i}?", "answer1": "Richtig", "answer2": "x",
+                "answer3": "y", "answer4": "z", "correct": 1, "skill": 3,
+            })
+        # allow skill 3 in preround
+        await client.put("/api/settings", json={
+            "players_per_round": 4, "num_prerounds": 3,
+            "skills_preround": [1, 2, 3, 4, 5],
+        })
+        r = await client.post("/api/game/create",
+                              json={"player_ids": ids, "shuffle": False})
+        assert r.json()["ok"]
+
+    board_msgs = []
+    buzzer_serial_cmds = []
+
+    async def board_listener():
+        async with websockets.connect(f"{WS}/ws/board") as ws:
+            async for raw in ws:
+                board_msgs.append(json.loads(raw))
+                if len(board_msgs) > 40:
+                    return
+
+    async def buzzer_client():
+        async with websockets.connect(f"{WS}/ws/buzzer?token={PW}") as ws:
+            await ws.send(json.dumps({"type": "serial_ready"}))
+            async for raw in ws:
+                msg = json.loads(raw)
+                if msg.get("type") == "serial_cmd":
+                    buzzer_serial_cmds.extend(msg["cmds"])
+
+    bt = asyncio.create_task(board_listener())
+    bz = asyncio.create_task(buzzer_client())
+    await asyncio.sleep(0.5)
+
+    async with httpx.AsyncClient(base_url=BASE) as client:
+        await client.post("/login", data={"password": PW})
+        st = (await client.get("/api/game/state")).json()
+        rid = st["rounds"][0]["id"]
+        await client.post(f"/api/game/round/{rid}/start")
+        await asyncio.sleep(0.3)
+        await client.post("/api/game/question/show")
+        await asyncio.sleep(0.3)
+
+        # buzzer 2 presses -> via websocket client
+        async with websockets.connect(f"{WS}/ws/buzzer?token={PW}") as ws2:
+            await ws2.send(json.dumps({"type": "buzzer", "buzzer": 2}))
+            await asyncio.sleep(0.5)
+
+        st = (await client.get("/api/game/state")).json()
+        assert st["phase"] == "buzzed", st["phase"]
+        assert st["buzzed_slot"] == 2
+        buzzed = [p for p in st["players"] if p["buzzed"]]
+        assert len(buzzed) == 1
+
+        # pick wrong answer (correct is 1)
+        r = await client.post("/api/game/answer", json={"answer": 3})
+        assert r.json()["correct"] is False
+        await asyncio.sleep(0.3)
+
+        st = (await client.get("/api/game/state")).json()
+        assert st["phase"] == "resolved"
+        others = [p["score"] for p in st["players"] if p["slot"] != 2]
+        assert all(s == 2 for s in others), st["players"]
+        blocked = [p["slot"] for p in st["players"] if p["blocked"]]
+        assert blocked == [2]
+
+        # next question: serial commands should have included reset + block idx1
+        await client.post("/api/game/question/show")
+        await asyncio.sleep(0.5)
+
+    bt.cancel(); bz.cancel()
+    states = [m["data"]["phase"] for m in board_msgs if m.get("type") == "state"]
+    print("phases seen on board:", states)
+    print("serial cmds seen:", buzzer_serial_cmds)
+    assert "question" in states and "buzzed" in states and "resolved" in states
+    assert "R" in buzzer_serial_cmds and "5" in buzzer_serial_cmds
+    print("E2E OK")
+
+
+asyncio.run(main())
