@@ -254,6 +254,29 @@ j = game.board_state(db)["players"][0]["jokers"]
 assert j == {"fifty": True, "double": True, "audience": True}, j
 print("OK Joker: Publikumsjoker + Verbrauch-Tracking pro Spieler")
 
+# answer_lockin off -> first moderator click judges directly;
+# but after the audience joker the lock-in flow always applies
+set_setting(db, "answer_lockin", False)
+q, _ = game.show_question(db)
+game.buzzer_pressed(db, 3)
+res, _ = game.pick_answer(db, q.correct)
+assert res is True, res  # direct judgment, no lock-in step
+assert game.get_state()["phase"] == "resolved"
+print("OK Antwort-Einloggen aus: erster Klick löst direkt auf")
+
+q, _ = game.show_question(db)
+game.buzzer_pressed(db, 3)
+ok, _ = game.use_joker(db, "audience")
+assert ok
+game.audience_vote(db, "v1", q.correct)
+game.stop_audience_voting(db)
+res, _ = game.pick_answer(db, q.correct)
+assert res == "locked"  # audience joker forces lock-in even with setting off
+correct, _ = game.pick_answer(db, q.correct)
+assert correct is True
+set_setting(db, "answer_lockin", True)
+print("OK Publikumsjoker erzwingt Einloggen trotz deaktivierter Einstellung")
+
 # disabled joker is rejected
 set_setting(db, "joker_fifty", False)
 game.show_question(db)

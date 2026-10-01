@@ -144,6 +144,8 @@ DEFAULT_SETTINGS = {
     "joker_fifty": True,
     "joker_double": True,
     "joker_audience": True,
+    # moderator lock-in ("eingeloggt") before judging; audience joker always locks
+    "answer_lockin": True,
     "skills_preround": [1, 2, 3],
     "skills_playoff": [3, 4],
     "skills_semifinal": [3, 4, 5],

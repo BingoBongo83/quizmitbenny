@@ -37,6 +37,7 @@ class SettingsBody(BaseModel):
     joker_fifty: bool | None = None
     joker_double: bool | None = None
     joker_audience: bool | None = None
+    answer_lockin: bool | None = None
     skills_preround: list[int] | None = None
     skills_playoff: list[int] | None = None
     skills_semifinal: list[int] | None = None

@@ -146,6 +146,7 @@ async function loadSettings() {
   document.getElementById("s_pws").value = settings.points_wrong_self;
   document.getElementById("s_pwo").value = settings.points_wrong_others;
   document.getElementById("s_block").checked = settings.block_on_wrong;
+  document.getElementById("s_lockin").checked = settings.answer_lockin !== false;
   document.getElementById("s_sound").value = settings.sound_target || "board";
   document.getElementById("s_jfifty").checked = settings.joker_fifty !== false;
   document.getElementById("s_jdouble").checked = settings.joker_double !== false;
@@ -191,6 +192,7 @@ async function saveAllSettings(btn) {
     points_wrong_self: +document.getElementById("s_pws").value,
     points_wrong_others: +document.getElementById("s_pwo").value,
     block_on_wrong: document.getElementById("s_block").checked,
+    answer_lockin: document.getElementById("s_lockin").checked,
     sound_target: document.getElementById("s_sound").value,
     joker_fifty: document.getElementById("s_jfifty").checked,
     joker_double: document.getElementById("s_jdouble").checked,

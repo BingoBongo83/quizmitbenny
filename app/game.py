@@ -680,15 +680,18 @@ def pick_answer(db: Session, answer_idx: int):
         if not q:
             return None, None
         locked = _state["locked_answer"]
+        s = get_all_settings(db)
+        audience_used = (_state["audience_voting"]
+                         or _state["audience_result"] is not None
+                         or _state["audience_pick"] is not None)
         if locked is None:
-            _state["locked_answer"] = answer_idx
-            _persist_state(db)
-            return "locked", q
-        if answer_idx != locked:
+            if s["answer_lockin"] or audience_used:
+                _state["locked_answer"] = answer_idx
+                _persist_state(db)
+                return "locked", q
+        elif answer_idx != locked:
             return "locked", q
         _state["locked_answer"] = None
-        answer_idx = locked
-        s = get_all_settings(db)
         slot = _state["buzzed_slot"]
         correct = (answer_idx == q.correct)
 
