@@ -7,7 +7,8 @@ let prevPhase = "idle";
 let prevFifty = false;
 let prevDouble = false;
 let prevArmed = false;
-let prevAudience = false;
+let prevResult = false;
+let prevLocked = false;
 let audio = null;
 
 // ---------- sound ----------
@@ -49,7 +50,8 @@ const sounds = {
 const SOUND_FILES = {
   question: "question", buzzed: "buzzer", correct: "correct",
   wrong: "wrong", joker_fifty: "joker", joker_double: "joker",
-  joker_audience: "joker", joker_activate: "joker_activate",
+  joker_audience: "audience", joker_activate: "joker_activate",
+  joker_lock: "joker",
 };
 const audioCache = {};
 function playSound(name) {
@@ -129,8 +131,7 @@ function render(state) {
       `<span class="stars">${"★".repeat(q.skill)}${"☆".repeat(5 - q.skill)}</span>` +
       (q.category ? ` · ${esc(q.category)}` : "") +
       (state.double_active ? ` <span class="badge joker-active">2× PUNKTE</span>` : "") +
-      (state.audience_voting ? ` <span class="badge joker-active">👥 Publikum stimmt ab… (${state.audience_votes || 0})</span>` : "") +
-      (state.audience_pick ? ` <span class="badge joker-active">Publikum: ${LETTERS[state.audience_pick - 1]}</span>` : "");
+      (state.audience_voting ? ` <span class="badge joker-active">👥 Publikum stimmt ab…</span>` : "");
     document.getElementById("qtext").textContent = q.text;
     const aw = document.getElementById("answers");
     aw.innerHTML = "";
@@ -147,7 +148,6 @@ function render(state) {
           if (i + 1 === q.correct) d.classList.add("correct");
           else if (i + 1 === q.picked) d.classList.add("wrong");
         }
-        if (state.audience_pick === i + 1) d.classList.add("audience-pick");
         if (state.locked_answer === i + 1 && state.phase === "buzzed")
           d.classList.add("locked");
         const bar = apct.length
@@ -182,13 +182,15 @@ function render(state) {
     if (fiftyNow && !prevFifty) { playSound("joker_activate"); playSound("joker_fifty"); }
     if (state.double_active && !prevDouble) { playSound("joker_activate"); playSound("joker_double"); }
     if (state.audience_voting && !prevArmed) playSound("joker_activate");
-    if (state.audience_pick && !prevAudience) playSound("joker_audience");
+    if (state.audience_result && !prevResult) playSound("joker_audience");
+    if (state.locked_answer && !prevLocked) playSound("joker_lock");
   }
   prevPhase = state.phase;
   prevFifty = (state.fifty_hidden || []).length > 0;
   prevDouble = !!state.double_active;
   prevArmed = !!state.audience_voting;
-  prevAudience = !!state.audience_pick;
+  prevResult = !!state.audience_result;
+  prevLocked = !!state.locked_answer;
 }
 
 function esc(s) {

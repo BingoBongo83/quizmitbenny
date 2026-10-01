@@ -42,7 +42,8 @@ const sounds = {
 const SOUND_FILES = {
   question: "question", buzzed: "buzzer", correct: "correct",
   wrong: "wrong", joker_fifty: "joker", joker_double: "joker",
-  joker_audience: "joker", joker_activate: "joker_activate",
+  joker_audience: "audience", joker_activate: "joker_activate",
+  joker_lock: "joker",
 };
 const audioCache = {};
 function playSound(name) {
@@ -62,7 +63,8 @@ function playSound(name) {
 let prevFifty = false;
 let prevDouble = false;
 let prevArmed = false;
-let prevAudience = false;
+let prevResult = false;
+let prevLocked = false;
 document.addEventListener("click", ensureAudio, { once: true });
 
 async function post(url, body) {
@@ -135,14 +137,12 @@ function render(st) {
         else if (i + 1 === st.question.picked) cls = "reveal-wrong";
       }
       if (hidden.includes(i + 1)) cls += " fifty-hidden";
-      if (st.audience_pick === i + 1) cls += " audience-pick";
       if (locked === i + 1) cls += " locked";
       b.className = cls;
       b.innerHTML = `<span class="letter">${LETTERS[i]}</span>${esc(a)}` +
         (i + 1 === st.question.correct ? " ✓" : "") +
         (apct.length ? ` <span class="apct-admin">${apct[i]}%</span>` : "") +
-        (locked === i + 1 ? ` <span class="badge">eingeloggt</span>` : "") +
-        (st.audience_pick === i + 1 ? ` <span class="badge">Publikum</span>` : "");
+        (locked === i + 1 ? ` <span class="badge">eingeloggt</span>` : "");
       b.disabled = st.phase !== "buzzed" || hidden.includes(i + 1)
         || st.audience_voting || (locked && locked !== i + 1);
       b.onclick = () => post("/api/game/answer", { answer: i + 1 });
@@ -277,13 +277,15 @@ function render(st) {
     if (fiftyNow && !prevFifty) { playSound("joker_activate"); playSound("joker_fifty"); }
     if (st.double_active && !prevDouble) { playSound("joker_activate"); playSound("joker_double"); }
     if (st.audience_voting && !prevArmed) playSound("joker_activate");
-    if (st.audience_pick && !prevAudience) playSound("joker_audience");
+    if (st.audience_result && !prevResult) playSound("joker_audience");
+    if (st.locked_answer && !prevLocked) playSound("joker_lock");
   }
   prevPhase = st.phase;
   prevFifty = (st.fifty_hidden || []).length > 0;
   prevDouble = !!st.double_active;
   prevArmed = !!st.audience_voting;
-  prevAudience = !!st.audience_pick;
+  prevResult = !!st.audience_result;
+  prevLocked = !!st.locked_answer;
 }
 
 document.getElementById("btnShow").onclick = () => post("/api/game/question/show");
