@@ -146,6 +146,9 @@ async function loadSettings() {
   document.getElementById("s_pwo").value = settings.points_wrong_others;
   document.getElementById("s_block").checked = settings.block_on_wrong;
   document.getElementById("s_sound").value = settings.sound_target || "board";
+  document.getElementById("s_jfifty").checked = settings.joker_fifty !== false;
+  document.getElementById("s_jdouble").checked = settings.joker_double !== false;
+  document.getElementById("s_jaudience").checked = settings.joker_audience !== false;
 
   document.getElementById("sub-game").textContent =
     `${settings.players_per_round}/Runde · ${settings.num_prerounds} Vorrunden · ` +
@@ -188,6 +191,9 @@ async function saveAllSettings(btn) {
     points_wrong_others: +document.getElementById("s_pwo").value,
     block_on_wrong: document.getElementById("s_block").checked,
     sound_target: document.getElementById("s_sound").value,
+    joker_fifty: document.getElementById("s_jfifty").checked,
+    joker_double: document.getElementById("s_jdouble").checked,
+    joker_audience: document.getElementById("s_jaudience").checked,
     seat_colors: [...document.querySelectorAll(".seatSel")].map((s) => s.value),
   };
   SKILL_SETS.forEach(([key]) => {

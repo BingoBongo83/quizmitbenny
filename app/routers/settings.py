@@ -34,6 +34,9 @@ class SettingsBody(BaseModel):
     block_on_wrong: bool | None = None
     sound_target: str | None = None
     seat_colors: list[str] | None = None
+    joker_fifty: bool | None = None
+    joker_double: bool | None = None
+    joker_audience: bool | None = None
     skills_preround: list[int] | None = None
     skills_playoff: list[int] | None = None
     skills_semifinal: list[int] | None = None

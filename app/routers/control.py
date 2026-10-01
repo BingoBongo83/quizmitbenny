@@ -26,6 +26,10 @@ class PoolBody(BaseModel):
     pool: str  # 'standard' | 'cat:<id>'
 
 
+class JokerBody(BaseModel):
+    kind: str  # 'fifty' | 'double' | 'audience'
+
+
 @router.post("/create")
 async def create_game(body: CreateGameBody, request: Request):
     from ..models import Player, get_all_settings
@@ -149,6 +153,35 @@ async def _auto_hide_resolved(question_id: int, delay: float = 3.0):
     finally:
         db.close()
     await broadcast_state_and_serial()
+
+
+@router.post("/joker")
+async def use_joker(body: JokerBody):
+    if body.kind not in ("fifty", "double", "audience"):
+        raise HTTPException(400, "Unbekannter Joker")
+    db = next(get_db())
+    try:
+        ok, err = game.use_joker(db, body.kind)
+        if not ok:
+            raise HTTPException(400, err)
+    finally:
+        db.close()
+    await broadcast_state_and_serial()
+    return {"ok": True}
+
+
+@router.post("/audience")
+async def audience_pick(body: AnswerBody):
+    if not 1 <= body.answer <= 4:
+        raise HTTPException(400, "Antwort 1-4 erwartet")
+    db = next(get_db())
+    try:
+        if not game.set_audience_pick(db, body.answer):
+            raise HTTPException(400, "Publikumsjoker nicht aktiv")
+    finally:
+        db.close()
+    await broadcast_state_and_serial()
+    return {"ok": True}
 
 
 @router.post("/answer")

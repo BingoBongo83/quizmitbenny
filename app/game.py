@@ -53,6 +53,12 @@ _state = {
     "correct_answer": None,
     "blocked_slots": [],
     "game_started": False,
+    # jokers: player_id -> {"fifty": bool, "double": bool, "audience": bool} (used)
+    "jokers": {},
+    "fifty_hidden": [],     # answer indexes (0-3) hidden by the 50:50 joker
+    "double_active": False,  # current question counts double
+    "audience_armed": False,  # moderator is about to pick the audience answer
+    "audience_pick": None,  # 1-4
 }
 
 _subscribers = []  # ws connection manager is injected
@@ -169,6 +175,10 @@ def create_game(db: Session, player_ids: list[int], shuffle: bool = True):
             "buzzed_slot": None, "picked_answer": None,
             "correct_answer": None, "blocked_slots": [],
             "game_started": True,
+            "jokers": {str(pid): {"fifty": False, "double": False,
+                                 "audience": False} for pid in ids},
+            "fifty_hidden": [], "double_active": False,
+            "audience_armed": False, "audience_pick": None,
         })
         db.commit()
         _persist_state(db)
@@ -237,6 +247,8 @@ def finish_round(db: Session, round_id: int):
             "buzzed_slot": None,
             "picked_answer": None, "correct_answer": None,
             "blocked_slots": [], "round_id": None,
+            "fifty_hidden": [], "double_active": False,
+            "audience_armed": False, "audience_pick": None,
         })
 
         if rnd.type == "final":
@@ -375,6 +387,11 @@ def _create_next_rounds(db, rtype, num_rounds):
         size = base + (1 if i < extra else 0)
         _create_round(db, rtype, players[idx: idx + size])
         idx += size
+    if rtype == "final":
+        # finalists get a fresh set of jokers
+        for rp in players:
+            _state["jokers"][str(rp.player_id)] = {
+                "fifty": False, "double": False, "audience": False}
 
 
 # ---------------------------------------------------------------------------
@@ -392,7 +409,9 @@ def start_round(db: Session, round_id: int):
                        "pending_question_id": None, "pending_source": None,
                        "buzzed_slot": None,
                        "picked_answer": None, "correct_answer": None,
-                       "blocked_slots": []})
+                       "blocked_slots": [],
+                       "fifty_hidden": [], "double_active": False,
+                       "audience_armed": False, "audience_pick": None})
         db.commit()
         _ensure_pending_question(db)
         _persist_state(db)
@@ -483,6 +502,8 @@ def show_question(db: Session):
             "buzzed_slot": None,
             "picked_answer": None,
             "correct_answer": None,
+            "fifty_hidden": [], "double_active": False,
+            "audience_armed": False, "audience_pick": None,
         })
         db.commit()
         _ensure_pending_question(db)  # preview the next one
@@ -498,9 +519,54 @@ def skip_question(db: Session):
         _state.update({
             "phase": "idle", "question_id": None, "question_source": None,
             "buzzed_slot": None, "picked_answer": None, "correct_answer": None,
+            "fifty_hidden": [], "double_active": False,
+            "audience_armed": False, "audience_pick": None,
         })
         _ensure_pending_question(db)
         _persist_state(db)
+
+
+def use_joker(db: Session, kind: str):
+    """Buzzed player uses a joker. kind: fifty|double|audience.
+    Returns (ok, error_message)."""
+    with _lock:
+        if _state["phase"] != "buzzed":
+            return False, "Joker nur nach Buzzern möglich"
+        s = get_all_settings(db)
+        if not s.get(f"joker_{kind}", False):
+            return False, "Dieser Joker ist deaktiviert"
+        rps = _active_round_players(db)
+        rp = next((r for r in rps if r.slot == _state["buzzed_slot"]), None)
+        if not rp:
+            return False, "Kein gebuzzerter Spieler"
+        jk = _state["jokers"].setdefault(
+            str(rp.player_id), {"fifty": False, "double": False, "audience": False})
+        if jk.get(kind):
+            return False, "Joker bereits verbraucht"
+        jk[kind] = True
+        if kind == "fifty":
+            q = get_question(db)
+            if q is None:
+                return False, "Keine aktive Frage"
+            wrong = [i for i in range(1, 5) if i != q.correct]
+            _state["fifty_hidden"] = random.sample(wrong, 2)
+        elif kind == "double":
+            _state["double_active"] = True
+        elif kind == "audience":
+            _state["audience_armed"] = True
+        _persist_state(db)
+        return True, None
+
+
+def set_audience_pick(db: Session, answer_idx: int):
+    """After the audience joker: moderator picks what the audience thinks."""
+    with _lock:
+        if not _state["audience_armed"]:
+            return False
+        _state["audience_pick"] = answer_idx
+        _state["audience_armed"] = False
+        _persist_state(db)
+        return True
 
 
 def _active_round_players(db):
@@ -540,10 +606,11 @@ def pick_answer(db: Session, answer_idx: int):
         slot = _state["buzzed_slot"]
         correct = (answer_idx == q.correct)
 
+        mult = 2 if _state["double_active"] else 1
         rps = _active_round_players(db)
         for rp in rps:
             if rp.slot == slot:
-                rp.score += s["points_correct"] if correct else s["points_wrong_self"]
+                rp.score += s["points_correct"] * mult if correct else s["points_wrong_self"]
             elif not correct:
                 rp.score += s["points_wrong_others"]
 
@@ -568,6 +635,8 @@ def unshow_question(db: Session):
         _state.update({
             "phase": "idle", "question_source": None, "buzzed_slot": None,
             "picked_answer": None, "correct_answer": None,
+            "fifty_hidden": [], "double_active": False,
+            "audience_armed": False, "audience_pick": None,
         })
         _persist_state(db)
 
@@ -620,12 +689,16 @@ def board_state(db: Session) -> dict:
         )
         players = [{
             "slot": rp.slot,
+            "player_id": rp.player_id,
             "name": db.get(Player, rp.player_id).name if db.get(Player, rp.player_id) else "?",
             "score": rp.score,
             "place": rp.place,
             "qualified": rp.qualified,
             "blocked": rp.slot in _state["blocked_slots"],
             "buzzed": rp.slot == _state["buzzed_slot"],
+            "jokers": _state["jokers"].get(
+                str(rp.player_id),
+                {"fifty": False, "double": False, "audience": False}),
         } for rp in rps]
     question = None
     if _state["question_id"] and _state["phase"] != "idle":
@@ -658,6 +731,13 @@ def board_state(db: Session) -> dict:
         "question": question,
         "buzzed_slot": _state["buzzed_slot"],
         "game_started": _state["game_started"],
+        "fifty_hidden": _state["fifty_hidden"],
+        "double_active": _state["double_active"],
+        "audience_armed": _state["audience_armed"],
+        "audience_pick": _state["audience_pick"],
+        "jokers_enabled": [
+            k for k in ("fifty", "double", "audience")
+            if get_setting(db, f"joker_{k}")],
         "sound_target": get_setting(db, "sound_target", "board"),
         "seat_colors": get_setting(db, "seat_colors"),
     }

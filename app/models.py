@@ -137,6 +137,9 @@ DEFAULT_SETTINGS = {
     "sound_target": "board",  # board | admin | both
     # seat (slot) colors — bound to the physical buzzer position, not players
     "seat_colors": ["#2e6bff", "#ffd23c", "#ff8c1a", "#ff5ec4", "#2ee56f"],
+    "joker_fifty": True,
+    "joker_double": True,
+    "joker_audience": True,
     "skills_preround": [1, 2, 3],
     "skills_playoff": [3, 4],
     "skills_semifinal": [3, 4, 5],

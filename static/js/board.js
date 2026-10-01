@@ -73,8 +73,13 @@ function render(state) {
     d.style.setProperty("--slot", hex);
     d.style.setProperty("--slot-glow", hex + "66");  // 40% alpha
     const pop = prevScores[p.slot] !== undefined && prevScores[p.slot] !== p.score;
+    const JLABEL = { fifty: "50", double: "2×", audience: "P" };
+    const jk = (state.jokers_enabled || [])
+      .map((k) => `<span class="jchip ${(p.jokers || {})[k] ? "used" : ""}">${JLABEL[k]}</span>`)
+      .join("");
     d.innerHTML = `<div class="pname">${esc(p.name)}</div>
-                   <div class="pscore${pop ? " pop" : ""}">${p.score}</div>`;
+                   <div class="pscore${pop ? " pop" : ""}">${p.score}</div>
+                   ${jk ? `<div class="pjokers">${jk}</div>` : ""}`;
     if (isAdmin) {
       d.title = "Klicken = Buzzer simulieren";
       d.onclick = () => buzz(p.slot);
@@ -92,18 +97,27 @@ function render(state) {
     const q = state.question;
     document.getElementById("qmeta").innerHTML =
       `<span class="stars">${"★".repeat(q.skill)}${"☆".repeat(5 - q.skill)}</span>` +
-      (q.category ? ` · ${esc(q.category)}` : "");
+      (q.category ? ` · ${esc(q.category)}` : "") +
+      (state.double_active ? ` <span class="badge joker-active">2× PUNKTE</span>` : "") +
+      (state.audience_pick ? ` <span class="badge joker-active">Publikum: ${LETTERS[state.audience_pick - 1]}</span>` : "");
     document.getElementById("qtext").textContent = q.text;
     const aw = document.getElementById("answers");
     aw.innerHTML = "";
+    const hidden = state.fifty_hidden || [];
     q.answers.forEach((a, i) => {
       const d = document.createElement("div");
       d.className = "answer";
-      if (state.phase === "resolved") {
-        if (i + 1 === q.correct) d.classList.add("correct");
-        else if (i + 1 === q.picked) d.classList.add("wrong");
+      if (hidden.includes(i + 1)) {
+        d.classList.add("fifty-hidden");
+        d.innerHTML = `<span class="letter">${LETTERS[i]}</span><span>—</span>`;
+      } else {
+        if (state.phase === "resolved") {
+          if (i + 1 === q.correct) d.classList.add("correct");
+          else if (i + 1 === q.picked) d.classList.add("wrong");
+        }
+        if (state.audience_pick === i + 1) d.classList.add("audience-pick");
+        d.innerHTML = `<span class="letter">${LETTERS[i]}</span><span>${esc(a)}</span>`;
       }
-      d.innerHTML = `<span class="letter">${LETTERS[i]}</span><span>${esc(a)}</span>`;
       aw.appendChild(d);
     });
   } else {

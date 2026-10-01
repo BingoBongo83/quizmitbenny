@@ -69,13 +69,17 @@ function render(st) {
   }
   const tbl = document.getElementById("curPlayers");
   const seatColors = (st.seat_colors && st.seat_colors.length) ? st.seat_colors : [];
-  tbl.innerHTML = "<tr><th>Slot</th><th>Spieler</th><th>Punkte</th><th></th></tr>" +
+  const jkEnabled = st.jokers_enabled || [];
+  const JLABEL = { fifty: "50", double: "2×", audience: "P" };
+  const jkChips = (p) => jkEnabled.map((k) =>
+    `<span class="jchip ${(p.jokers || {})[k] ? "used" : ""}">${JLABEL[k]}</span>`).join("");
+  tbl.innerHTML = "<tr><th>Slot</th><th>Spieler</th><th>Joker</th><th>Punkte</th><th></th></tr>" +
     st.players.map((p) => {
       const hex = seatColors[p.slot - 1] || "#888";
       return `<tr class="buzzsim ${p.buzzed ? "buzzed" : ""} ${p.blocked ? "blocked" : ""}"
            data-slot="${p.slot}" title="Klicken = Buzzer simulieren">
         <td>${p.slot} <span class="seat-dot" style="background:${hex};box-shadow:0 0 8px ${hex}"></span></td>
-        <td>${esc(p.name)}</td><td>${p.score}</td>
+        <td>${esc(p.name)}</td><td>${jkChips(p)}</td><td>${p.score}</td>
         <td>${p.buzzed ? "GEBUZZERT" : p.blocked ? "gesperrt" : ""}</td></tr>`;
     }).join("");
   tbl.querySelectorAll("tr.buzzsim").forEach((row) =>
@@ -89,6 +93,7 @@ function render(st) {
   if (st.question) {
     cq.textContent = `Frage (Skill ${st.question.skill}${st.question.category ? ", " + st.question.category : ""})`;
     cqt.textContent = st.question.text;
+    const hidden = st.fifty_hidden || [];
     st.question.answers.forEach((a, i) => {
       const b = document.createElement("button");
       let cls = "";
@@ -96,11 +101,16 @@ function render(st) {
         if (i + 1 === st.question.correct) cls = "reveal-correct";
         else if (i + 1 === st.question.picked) cls = "reveal-wrong";
       }
+      if (hidden.includes(i + 1)) cls += " fifty-hidden";
+      if (st.audience_pick === i + 1) cls += " audience-pick";
       b.className = cls;
       b.innerHTML = `<span class="letter">${LETTERS[i]}</span>${esc(a)}` +
-        (i + 1 === st.question.correct ? " ✓" : "");
-      b.disabled = st.phase !== "buzzed";
-      b.onclick = () => post("/api/game/answer", { answer: i + 1 });
+        (i + 1 === st.question.correct ? " ✓" : "") +
+        (st.audience_pick === i + 1 ? ` <span class="badge">Publikum</span>` : "");
+      b.disabled = st.phase !== "buzzed" || hidden.includes(i + 1);
+      b.onclick = () => post(
+        st.audience_armed ? "/api/game/audience" : "/api/game/answer",
+        { answer: i + 1 });
       btns.appendChild(b);
     });
     if (st.phase === "buzzed") {
@@ -110,6 +120,44 @@ function render(st) {
   } else {
     cq.textContent = "Keine Frage aktiv";
     cqt.textContent = "";
+  }
+
+  // joker bar: shown for the buzzed player
+  const jb = document.getElementById("jokerBar");
+  jb.innerHTML = "";
+  if (st.question && st.double_active)
+    jb.innerHTML += `<span class="badge joker-active">2× PUNKTE</span>`;
+  if (st.question && st.audience_pick)
+    jb.innerHTML += `<span class="badge joker-active">Publikum: ${LETTERS[st.audience_pick - 1]}</span>`;
+  if (st.phase === "buzzed") {
+    const bp = st.players.find((x) => x.buzzed);
+    if (bp && bp.jokers) {
+      const avail = jkEnabled.filter((k) => !bp.jokers[k]);
+      const span = document.createElement("span");
+      span.className = "muted";
+      span.innerHTML = `Joker für <b>${esc(bp.name)}</b>:`;
+      jb.appendChild(span);
+      if (!avail.length) {
+        const none = document.createElement("span");
+        none.className = "muted";
+        none.textContent = " keine übrig";
+        jb.appendChild(none);
+      }
+      const BTN_LABEL = { fifty: "50:50", double: "2× Punkte", audience: "Publikum" };
+      avail.forEach((k) => {
+        const b = document.createElement("button");
+        b.className = "joker-btn";
+        b.textContent = BTN_LABEL[k];
+        b.onclick = () => post("/api/game/joker", { kind: k });
+        jb.appendChild(b);
+      });
+      if (st.audience_armed) {
+        const hint = document.createElement("span");
+        hint.className = "audience-hint";
+        hint.textContent = "→ Publikum wählen: Antwort anklicken";
+        jb.appendChild(hint);
+      }
+    }
   }
 
   // next question preview

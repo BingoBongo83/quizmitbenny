@@ -167,6 +167,93 @@ for _ in range(5):
     assert not isinstance(q, CustomQuestion)
 print("OK Standard-Pool zieht niemals eigene Fragen")
 
+# --- jokers ---
+db.query(RoundPlayer).delete(); db.query(Round).delete()
+db.query(Question).update({Question.used: False})
+db.query(CustomQuestion).update({CustomQuestion.used: False})
+game.get_state().update({"phase": "idle", "round_id": None,
+                         "question_id": None, "question_source": None,
+                         "pending_question_id": None, "pending_source": None,
+                         "buzzed_slot": None, "picked_answer": None,
+                         "correct_answer": None, "blocked_slots": [],
+                         "game_started": False,
+                         "jokers": {}, "fifty_hidden": [],
+                         "double_active": False, "audience_armed": False,
+                         "audience_pick": None})
+from app.models import set_setting
+set_setting(db, "players_per_round", 4)
+set_setting(db, "num_prerounds", 3)
+pids = [p.id for p in db.query(Player).order_by(Player.id).limit(12).all()]
+game.create_game(db, pids, shuffle=False)
+r1 = db.query(Round).order_by(Round.number).first()
+assert r1.status == "active"
+
+# joker requires a buzzed player first
+ok, err = game.use_joker(db, "fifty")
+assert not ok and "Buzzern" in err
+q, _ = game.show_question(db)
+slot, ok = game.buzzer_pressed(db, 1)
+assert ok
+
+# 50:50 hides exactly two wrong answers, correct stays
+ok, err = game.use_joker(db, "fifty")
+assert ok, err
+st = game.board_state(db)
+hid = st["fifty_hidden"]
+assert len(hid) == 2 and q.correct not in hid
+ok, err = game.use_joker(db, "fifty")
+assert not ok and "verbraucht" in err
+
+# double points: correct answer scores 2x
+ok, err = game.use_joker(db, "double")
+assert ok, err
+assert game.get_state()["double_active"]
+correct, _ = game.pick_answer(db, q.correct)
+assert correct
+rp = db.query(RoundPlayer).filter(
+    RoundPlayer.round_id == r1.id, RoundPlayer.slot == 1).first()
+assert rp.score == 4, rp.score
+assert not game.get_state()["double_active"] or game.get_state()["phase"] == "resolved"
+print("OK Joker: 50:50 + doppelte Punkte (2x auf richtig)")
+
+# audience joker: moderator picks the audience's answer
+q, _ = game.show_question(db)
+slot, ok = game.buzzer_pressed(db, 1)
+assert ok
+ok, err = game.use_joker(db, "audience")
+assert ok, err
+assert game.get_state()["audience_armed"]
+assert game.set_audience_pick(db, 2)
+st = game.board_state(db)
+assert st["audience_pick"] == 2 and not st["audience_armed"]
+correct, _ = game.pick_answer(db, q.correct)
+j = game.board_state(db)["players"][0]["jokers"]
+assert j == {"fifty": True, "double": True, "audience": True}, j
+print("OK Joker: Publikumsjoker + Verbrauch-Tracking pro Spieler")
+
+# disabled joker is rejected
+set_setting(db, "joker_fifty", False)
+game.show_question(db)
+game.buzzer_pressed(db, 2)
+ok, err = game.use_joker(db, "fifty")
+assert not ok and "deaktiviert" in err
+set_setting(db, "joker_fifty", True)
+print("OK Joker: deaktivierter Joker wird abgelehnt")
+
+# finalists get a fresh set of jokers
+for rp2 in db.query(RoundPlayer).filter(RoundPlayer.round_id == r1.id):
+    rp2.qualified = "direct"
+db.flush()
+game._create_next_rounds(db, "final", 1)
+fin = db.query(Round).filter(Round.type == "final").first()
+assert fin
+fids = {rp2.player_id for rp2 in db.query(RoundPlayer).filter(
+    RoundPlayer.round_id == fin.id)}
+for pid in fids:
+    j = game.get_state()["jokers"].get(str(pid), {})
+    assert j == {"fifty": False, "double": False, "audience": False}, (pid, j)
+print("OK Joker: Finalisten bekommen neue Joker")
+
 # --- alternate config: 4 prerounds x 3 players = 12, semis need 6 ---
 db.query(RoundPlayer).delete(); db.query(Round).delete()
 db.query(Question).update({Question.used: False})

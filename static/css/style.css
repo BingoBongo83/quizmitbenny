@@ -387,6 +387,30 @@ label.field { display: block; margin: 10px 0 4px; color: var(--muted); font-size
 }
 .seat-dot.sm { width: 10px; height: 10px; vertical-align: 0; }
 
+/* jokers */
+.jchip {
+  display: inline-block; min-width: 1.6em; text-align: center;
+  border: 1px solid rgba(255,210,60,.5); color: var(--gold);
+  border-radius: 5px; padding: 1px 5px; margin-right: 4px;
+  font-size: .78em; font-weight: 700;
+}
+.jchip.used { opacity: .3; text-decoration: line-through; border-color: rgba(120,135,200,.4); color: var(--muted); }
+.pjokers { margin-top: 6px; }
+.joker-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.joker-bar:empty { margin: 0; }
+.joker-btn {
+  border: 1px solid rgba(255,210,60,.6); color: var(--gold);
+  background: rgba(255,210,60,.08); font-weight: 700;
+}
+.joker-btn:hover { background: rgba(255,210,60,.2); }
+.badge.joker-active { border: 1px solid rgba(255,210,60,.6); color: var(--gold); background: rgba(255,210,60,.12); }
+.audience-hint { color: var(--gold); font-size: .9em; }
+.answer.fifty-hidden { opacity: .25; }
+.answer-btns button.fifty-hidden { opacity: .3; border-style: dashed; }
+.answer.audience-pick, .answer-btns button.audience-pick {
+  border-color: rgba(255,210,60,.7); box-shadow: 0 0 16px rgba(255,210,60,.25);
+}
+
 /* admin rounds list */
 .round-card {
   background: var(--card2);
