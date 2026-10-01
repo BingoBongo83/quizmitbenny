@@ -35,10 +35,13 @@ function render(st) {
   const tbl = document.getElementById("curPlayers");
   tbl.innerHTML = "<tr><th>Slot</th><th>Spieler</th><th>Punkte</th><th></th></tr>" +
     st.players.map((p) =>
-      `<tr class="${p.buzzed ? "buzzed" : ""} ${p.blocked ? "blocked" : ""}">
+      `<tr class="buzzsim ${p.buzzed ? "buzzed" : ""} ${p.blocked ? "blocked" : ""}"
+           data-slot="${p.slot}" title="Klicken = Buzzer simulieren">
         <td>${p.slot}</td><td>${esc(p.name)}</td><td>${p.score}</td>
         <td>${p.buzzed ? "GEBUZZERT" : p.blocked ? "gesperrt" : ""}</td></tr>`
     ).join("");
+  tbl.querySelectorAll("tr.buzzsim").forEach((row) =>
+    (row.onclick = () => QuizWS.send({ type: "buzzer", buzzer: +row.dataset.slot })));
 
   // current question
   const cq = document.getElementById("curQ");

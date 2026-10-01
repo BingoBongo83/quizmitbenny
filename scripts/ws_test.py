@@ -52,6 +52,8 @@ async def main():
         await client.put("/api/settings", json={
             "players_per_round": 4, "num_prerounds": 3,
             "skills_preround": [1, 2, 3, 4, 5],
+            "points_correct": 2, "points_wrong_self": 0,
+            "points_wrong_others": 2, "block_on_wrong": True,
         })
         r = await client.post("/api/game/create",
                               json={"player_ids": ids, "shuffle": False})

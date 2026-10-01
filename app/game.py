@@ -97,6 +97,15 @@ def compute_bracket_preview(num_players: int, players_per_round: int, num_prerou
         "warnings": [],
         "playoffs": [],
     }
+    if any(sz < n for sz in preround_sizes):
+        preview["warnings"].append(
+            f"Nicht alle Vorrunden sind voll ({'/'.join(map(str, preround_sizes))} "
+            f"statt {n}) – ggf. Vorrunden-Anzahl oder Spielerzahl anpassen"
+        )
+    if any(sz < 2 for sz in preround_sizes):
+        preview["warnings"].append(
+            "Mindestens eine Vorrunde hätte nur 1 Spieler – unsinnig!"
+        )
     spots_semi = 2 * n
     direct_per_round = min(2, spots_semi // p) if p else 2
     direct = direct_per_round * p

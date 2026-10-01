@@ -270,9 +270,12 @@ async function loadRounds() {
 
 // ---------------- questions ----------------
 async function loadQuestions() {
+  const params = new URLSearchParams();
   const q = document.getElementById("qSearch").value;
   const skill = document.getElementById("qSkillFilter").value;
-  const qs = await api(`/api/questions?q=${encodeURIComponent(q)}&skill=${skill}`);
+  if (q) params.set("q", q);
+  if (skill) params.set("skill", skill);
+  const qs = await api(`/api/questions?${params}`);
   document.getElementById("questionTable").innerHTML =
     `<tr><th>Frage</th><th>Skill</th><th>Kat.</th><th>✓</th><th></th></tr>` +
     qs.map((x) => `<tr>
@@ -325,11 +328,9 @@ document.getElementById("resetUsed").onclick = async () => {
 
 // ---------------- init ----------------
 (async () => {
-  await loadSettings();
-  await loadPlayers();
-  await loadCategories();
-  await loadRounds();
-  await loadQuestions();
+  for (const fn of [loadSettings, loadPlayers, loadCategories, loadRounds, loadQuestions]) {
+    try { await fn(); } catch (e) { console.error(fn.name, "failed:", e); }
+  }
   document.getElementById("s_ppr").onchange = loadPreview;
   document.getElementById("s_pre").onchange = loadPreview;
 })();
