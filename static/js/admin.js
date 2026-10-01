@@ -101,7 +101,7 @@ function render(st) {
   const JICON = { fifty: "50", double: "2×", audience: "👥" };
   const JTIP = { fifty: "50:50", double: "Doppelte Punkte", audience: "Publikumsjoker" };
   const jkChips = (p) => jkEnabled.map((k) =>
-    `<span class="jchip ${(p.jokers || {})[k] ? "used" : ""}"
+    `<span class="jchip ${k} ${(p.jokers || {})[k] ? "used" : ""}"
       title="${JTIP[k]}">${JICON[k]}</span>`).join("");
   tbl.innerHTML = "<tr><th>Slot</th><th>Spieler</th><th>Joker</th><th>Punkte</th><th></th></tr>" +
     st.players.map((p) => {

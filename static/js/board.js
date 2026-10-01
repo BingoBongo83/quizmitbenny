@@ -103,7 +103,7 @@ function render(state) {
     const JICON = { fifty: "50", double: "2×", audience: "👥" };
     const JTIP = { fifty: "50:50", double: "Doppelte Punkte", audience: "Publikumsjoker" };
     const jk = (state.jokers_enabled || [])
-      .map((k) => `<span class="jchip ${(p.jokers || {})[k] ? "used" : ""}"
+      .map((k) => `<span class="jchip ${k} ${(p.jokers || {})[k] ? "used" : ""}"
         title="${JTIP[k]}">${JICON[k]}</span>`)
       .join("");
     d.innerHTML = `<div class="pname">${esc(p.name)}</div>
