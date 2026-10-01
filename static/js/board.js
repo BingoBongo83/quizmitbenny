@@ -167,7 +167,8 @@ function render(state) {
     qbox.classList.add("hidden");
     idle.classList.remove("hidden");
     idle.textContent = state.game_started
-      ? (state.round ? "Buzzer bereit" : "Nächste Runde")
+      ? (state.round ? "Buzzer bereit"
+         : state.quiz_waiting ? "Quiz startet gleich" : "Nächste Runde")
       : "Quiz startet gleich";
   }
 

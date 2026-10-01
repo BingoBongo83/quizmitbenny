@@ -256,6 +256,9 @@ function render(st) {
     : "–";
 
   // buttons enabled state
+  const allPending = st.game_started && st.rounds.length &&
+    st.rounds.every((r) => r.status === "pending");
+  document.getElementById("btnStart").disabled = !(allPending && !st.round);
   document.getElementById("btnShow").disabled = !(st.round && (st.phase === "idle" || st.phase === "resolved"));
   document.getElementById("btnSkip").disabled = !(st.question);
   document.getElementById("btnHide").disabled = !(st.question);
@@ -288,6 +291,10 @@ function render(st) {
   prevLocked = !!st.locked_answer;
 }
 
+document.getElementById("btnStart").onclick = () => {
+  const first = lastState && lastState.rounds.find((r) => r.status === "pending");
+  if (first) post(`/api/game/round/${first.id}/start`);
+};
 document.getElementById("btnShow").onclick = () => post("/api/game/question/show");
 document.getElementById("btnSkip").onclick = () => post("/api/game/question/skip");
 document.getElementById("btnHide").onclick = () => post("/api/game/question/hide");

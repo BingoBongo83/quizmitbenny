@@ -156,15 +156,12 @@ def create_game(db: Session, player_ids: list[int], shuffle: bool = True):
         base, extra = divmod(len(ids), p)
         idx = 0
         number = 1
-        first_round_id = None
         for i in range(p):
             size = base + (1 if i < extra else 0)
             rnd = Round(number=number, type="preround", status="pending",
                         skill_levels=s["skills_preround"])
             db.add(rnd)
             db.flush()
-            if first_round_id is None:
-                first_round_id = rnd.id
             for slot in range(size):
                 db.add(RoundPlayer(round_id=rnd.id, player_id=ids[idx],
                                    slot=slot + 1, score=0))
@@ -187,8 +184,7 @@ def create_game(db: Session, player_ids: list[int], shuffle: bool = True):
         })
         db.commit()
         _persist_state(db)
-        if first_round_id is not None:
-            start_round(db, first_round_id)
+        # rounds stay pending – the moderator starts the quiz explicitly
 
 
 def _ranked_players(db: Session, round_id: int):
@@ -810,8 +806,13 @@ def board_state(db: Session) -> dict:
             pool_label = f"Kategorie: {cat.name}" if cat else "Kategorie"
         else:
             pool_label = "Standard-Pool"
+    quiz_waiting = (
+        _state["game_started"] and rnd is None and
+        not db.query(Round).filter(Round.status != "pending").count()
+    )
     return {
         "phase": _state["phase"],
+        "quiz_waiting": quiz_waiting,
         "round": {
             "id": rnd.id, "number": rnd.number,
             "type": rnd.type, "type_label": ROUND_TYPE_LABELS.get(rnd.type, rnd.type),

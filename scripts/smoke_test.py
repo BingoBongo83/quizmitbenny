@@ -194,7 +194,9 @@ set_setting(db, "num_prerounds", 3)
 pids = [p.id for p in db.query(Player).order_by(Player.id).limit(12).all()]
 game.create_game(db, pids, shuffle=False)
 r1 = db.query(Round).order_by(Round.number).first()
-assert r1.status == "active"
+assert r1.status == "pending"  # moderator starts the quiz explicitly
+game.start_round(db, r1.id)
+assert game.get_state()["round_id"] == r1.id
 
 # joker requires a buzzed player first
 ok, err = game.use_joker(db, "fifty")
