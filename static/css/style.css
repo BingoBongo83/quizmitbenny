@@ -425,34 +425,69 @@ nav.topnav a { color: var(--muted); text-decoration: none; font-weight: 600; let
 nav.topnav a.active, nav.topnav a:hover { color: var(--gold); }
 nav.topnav .spacer { flex: 1; }
 
-/* settings sub-tabs */
-.tabnav {
+/* settings function cards + modals */
+.fn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+.fn-card {
   display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin: 0 auto 18px;
-}
-.tab-btn {
-  padding: 9px 22px;
-  border-radius: 999px;
-  border: 1px solid rgba(120,135,200,.3);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 20px;
+  min-height: 92px;
+  text-align: left;
   background: var(--card);
-  color: var(--muted);
-  font-size: .95em;
-  font-weight: 700;
-  letter-spacing: .04em;
+  border: 1px solid rgba(120,135,200,.18);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 34px rgba(0,0,0,.35);
   cursor: pointer;
-  transition: color .2s, border-color .2s, background .2s, box-shadow .2s;
+  transition: transform .15s, border-color .2s, box-shadow .2s;
 }
-.tab-btn:hover { color: var(--fg); border-color: rgba(120,135,200,.6); }
-.tab-btn.active {
-  color: #0b0f24;
-  background: linear-gradient(135deg, var(--gold), #ff9d3c);
-  border-color: transparent;
-  box-shadow: 0 0 22px rgba(255,190,60,.35);
+.fn-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255,190,60,.5);
+  box-shadow: 0 14px 40px rgba(0,0,0,.45), 0 0 22px rgba(255,190,60,.12);
 }
-.tabpage { animation: fadeUp .3s ease both; }
+.fn-title { font-size: 1.05em; font-weight: 700; color: var(--gold); letter-spacing: .04em; }
+.fn-sub { font-size: .85em; color: var(--muted); line-height: 1.4; }
+.fn-sub .seat-dot { width: 12px; height: 12px; margin-right: 4px; }
+
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(5,8,20,.72);
+  backdrop-filter: blur(7px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  padding: 3vh 3vw;
+}
+.modal {
+  background: var(--card);
+  border: 1px solid rgba(120,135,200,.25);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 80px rgba(0,0,0,.6);
+  padding: 22px 24px;
+  width: min(560px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  animation: modalIn .22s cubic-bezier(.2,.9,.3,1.1) both;
+}
+.modal.wide { width: min(920px, 100%); }
+.modal h2 {
+  font-size: .95em; color: var(--gold); margin-bottom: 12px;
+  text-transform: uppercase; letter-spacing: .14em;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(16px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+.modal-foot {
+  display: flex; gap: 10px; justify-content: flex-end;
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1px solid rgba(120,135,200,.15);
+}
 
 .login-box {
   max-width: 380px; margin: 16vh auto; background: var(--card);

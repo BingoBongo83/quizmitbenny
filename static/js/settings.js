@@ -30,14 +30,36 @@ const BUZZER_COLORS = [
 ];
 const SEAT_COUNT = 5;
 
-// ---------------- tabs ----------------
-document.querySelectorAll(".tab-btn").forEach((b) => {
-  b.onclick = () => {
-    document.querySelectorAll(".tab-btn").forEach((x) => x.classList.toggle("active", x === b));
-    document.querySelectorAll(".tabpage").forEach((p) =>
-      p.classList.toggle("hidden", p.id !== "tab-" + b.dataset.tab));
-  };
+// ---------------- modals ----------------
+const MODAL_REFRESH = {
+  "m-players": () => loadPlayers(),
+  "m-rounds": () => loadRounds(),
+  "m-questions": () => loadQuestions(),
+  "m-cats": () => loadCategories(),
+};
+function openModal(id) {
+  document.getElementById(id).classList.remove("hidden");
+  const fn = MODAL_REFRESH[id];
+  if (fn) fn().catch(() => {});
+}
+function closeModal(el) {
+  el.closest(".modal-overlay").classList.add("hidden");
+}
+document.querySelectorAll(".fn-card").forEach((c) =>
+  (c.onclick = () => openModal(c.dataset.modal)));
+document.querySelectorAll(".modal-overlay").forEach((ov) =>
+  ov.addEventListener("click", (e) => {
+    if (e.target === ov) ov.classList.add("hidden");
+  }));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape")
+    document.querySelectorAll(".modal-overlay").forEach((o) => o.classList.add("hidden"));
 });
+document.querySelectorAll(".modalClose").forEach((b) => (b.onclick = () => closeModal(b)));
+document.querySelectorAll(".modalCancel").forEach((b) => (b.onclick = () => {
+  closeModal(b);
+  loadSettings().catch(() => {});  // discard unsaved form edits
+}));
 
 let players = [];
 let settings = {};
@@ -53,6 +75,9 @@ async function loadPlayers() {
   const actives = players.filter((p) => p.active);
   const inactives = players.filter((p) => !p.active);
   const el = document.getElementById("playerList");
+  document.getElementById("sub-players").textContent =
+    `${actives.length} aktiv · ${need} benötigt` +
+    (inactives.length ? ` · ${inactives.length} inaktiv` : "");
   const info = need
     ? `<div class="muted" style="margin-bottom:8px">Benötigt: <b>${need}</b> Spieler
        (${settings.players_per_round}/Runde × ${settings.num_prerounds} Vorrunden) –
@@ -71,7 +96,7 @@ async function loadPlayers() {
     </div>`;
   el.innerHTML = info + actives.map((p, i) => row(p, i >= need)).join("") +
     (inactives.length
-      ? `<div class="player-row"><button id="toggleInact" class="tab-btn" style="padding:4px 14px;font-size:.8em">
+      ? `<div class="player-row"><button id="toggleInact" style="padding:4px 14px;font-size:.8em">
            ▸ Inaktive Spieler (${inactives.length})</button></div>
          <div id="inactList" class="hidden">${inactives.map((p) => row(p, false)).join("")}</div>`
       : "");
@@ -122,6 +147,12 @@ async function loadSettings() {
   document.getElementById("s_block").checked = settings.block_on_wrong;
   document.getElementById("s_sound").value = settings.sound_target || "board";
 
+  document.getElementById("sub-game").textContent =
+    `${settings.players_per_round}/Runde · ${settings.num_prerounds} Vorrunden · ` +
+    `+${settings.points_correct}/${settings.points_wrong_self}/+${settings.points_wrong_others}`;
+  document.getElementById("sub-skills").textContent =
+    SKILL_SETS.map(([k, l]) => `${l}: ${(settings[k] || []).join("-")}`).join(" · ");
+
   const sc = document.getElementById("seatColors");
   const seatColors = settings.seat_colors || [];
   sc.innerHTML = Array.from({ length: SEAT_COUNT }, (_, i) => `
@@ -136,6 +167,8 @@ async function loadSettings() {
   sc.querySelectorAll(".seatSel").forEach((sel) => (sel.onchange = () => {
     sel.closest(".player-row").querySelector(".seat-dot").style.background = sel.value;
   }));
+  document.getElementById("sub-seats").innerHTML = seatColors.map((hex, i) =>
+    `<span class="seat-dot" style="background:${hex || "#888"}" title="Platz ${i + 1}"></span>`).join("");
 
   const sk = document.getElementById("skillSets");
   sk.innerHTML = SKILL_SETS.map(([key, label]) => `
@@ -146,7 +179,7 @@ async function loadSettings() {
     `</div>`).join("");
 }
 
-document.getElementById("saveSettings").onclick = async () => {
+async function saveAllSettings(btn) {
   const body = {
     players_per_round: +document.getElementById("s_ppr").value,
     num_prerounds: +document.getElementById("s_pre").value,
@@ -162,10 +195,13 @@ document.getElementById("saveSettings").onclick = async () => {
       .map((c) => +c.value);
   });
   await api("/api/settings", "PUT", body);
-  settings = body;
-  loadPreview();
-  alert("Gespeichert");
-};
+  settings = { ...settings, ...body };
+  closeModal(btn);
+  loadSettings(); loadPreview();
+}
+document.getElementById("saveSettings").onclick = (e) => saveAllSettings(e.target);
+document.getElementById("saveSeats").onclick = (e) => saveAllSettings(e.target);
+document.getElementById("saveSkills").onclick = (e) => saveAllSettings(e.target);
 
 // ---------------- bracket preview ----------------
 async function loadPreview() {
@@ -202,6 +238,8 @@ let editQid = null;
 
 async function loadCategories() {
   categories = await api("/api/categories");
+  document.getElementById("sub-cats").textContent =
+    `${categories.length} Kategorien · ${categories.reduce((a, c) => a + c.count, 0)} eigene Fragen`;
   const el = document.getElementById("categoryList");
   el.innerHTML = categories.map((c) => `
     <div class="player-row">
@@ -311,6 +349,8 @@ document.getElementById("cqImport").onchange = async (e) => {
 // ---------------- rounds + pools ----------------
 async function loadRounds() {
   const st = await api("/api/game/state");
+  document.getElementById("sub-rounds").textContent =
+    st.rounds.length ? `${st.rounds.length} Runden` : "kein Spiel";
   const el = document.getElementById("roundAssign");
   if (!st.rounds.length) { el.textContent = "Noch kein Spiel erstellt."; return; }
   const poolOpts = (sel) =>
@@ -346,6 +386,7 @@ async function loadQuestions() {
   const res = await api(`/api/questions?${params}`);
   let qs = res.items;
   qTotal = res.total;
+  document.getElementById("sub-questions").textContent = `${qTotal} Fragen`;
   if (!qs.length && qPage > 0) { qPage--; return loadQuestions(); }
   window._qs = qs;
   document.getElementById("questionTable").innerHTML =
