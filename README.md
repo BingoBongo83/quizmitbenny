@@ -99,10 +99,42 @@ python -m scripts.simulate_buzzer --server ws://localhost:8765
 
 ## Deploy (Server)
 
-1. Repo auf Server, venv + requirements installieren
-2. `config.py` mit echten Zugangsdaten anlegen, Admin-User via CLI erstellen
-3. `deploy/quiz.service` → `/etc/systemd/system/quiz.service`, `systemctl enable --now quiz`
-4. `deploy/nginx.example` als nginx-site (WebSocket-Header sind schon drin)
+Produktiv läuft die App auf dem Server unter User `quizmitbenny` in
+`/opt/quizmitbenny`, hinter nginx als `quiz.schaeling.org`.
+
+```bash
+# 1. Code + venv (Repo ist public, HTTPS-Clone reicht)
+git clone https://github.com/BingoBongo83/quizmitbenny.git /opt/quizmitbenny
+sudo chown -R quizmitbenny:quizmitbenny /opt/quizmitbenny
+sudo -u quizmitbenny python3 -m venv /opt/quizmitbenny/env
+sudo -u quizmitbenny /opt/quizmitbenny/env/bin/pip install -r /opt/quizmitbenny/requirements.txt
+
+# 2. MariaDB
+DB_PASS=$(openssl rand -hex 16)
+sudo mariadb -e "CREATE DATABASE quizmitbenny CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+                 CREATE USER 'quizmitbenny'@'localhost' IDENTIFIED BY '$DB_PASS';
+                 GRANT ALL PRIVILEGES ON quizmitbenny.* TO 'quizmitbenny'@'localhost';
+                 FLUSH PRIVILEGES;"
+
+# 3. config.py (gitignored, nur auf dem Server)
+sudo -u quizmitbenny tee /opt/quizmitbenny/config.py > /dev/null <<EOF
+DATABASE_URL = "mysql+pymysql://quizmitbenny:$DB_PASS@localhost:3306/quizmitbenny?charset=utf8mb4"
+SECRET_KEY = "$(openssl rand -hex 32)"
+BUZZER_TOKEN = "$(openssl rand -hex 16)"
+DEEPL_API_KEY = ""
+EOF
+
+# 4. Admin-User + systemd + nginx
+cd /opt/quizmitbenny && sudo -u quizmitbenny env/bin/python -m scripts.admin create benny
+sudo cp /opt/quizmitbenny/deploy/quizmitbenny.service /etc/systemd/system/
+sudo systemctl enable --now quizmitbenny
+sudo cp /opt/quizmitbenny/deploy/nginx.example /etc/nginx/sites-available/quizmitbenny
+sudo ln -s /etc/nginx/sites-available/quizmitbenny /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d quiz.schaeling.org
+```
+
+Updates: `cd /opt/quizmitbenny && sudo -u quizmitbenny git pull && sudo systemctl restart quizmitbenny`
 
 ## Tests
 
