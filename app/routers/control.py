@@ -1,5 +1,7 @@
 """Game-control endpoints (moderator actions)."""
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
@@ -135,6 +137,20 @@ async def hide_question():
     return {"ok": True}
 
 
+async def _auto_hide_resolved(question_id: int, delay: float = 3.0):
+    """Hide a resolved question from the board after `delay` seconds."""
+    await asyncio.sleep(delay)
+    st = game.get_state()
+    if st["phase"] != "resolved" or st["question_id"] != question_id:
+        return  # moderator already moved on
+    db = next(get_db())
+    try:
+        game.unshow_question(db)
+    finally:
+        db.close()
+    await broadcast_state_and_serial()
+
+
 @router.post("/answer")
 async def pick_answer(body: AnswerBody):
     db = next(get_db())
@@ -142,9 +158,12 @@ async def pick_answer(body: AnswerBody):
         correct, q = game.pick_answer(db, body.answer)
         if correct is None:
             raise HTTPException(400, "Kein gebuzzerter Spieler / keine Frage aktiv")
+        qid = q.id if q else None
     finally:
         db.close()
     await broadcast_state_and_serial()
+    if qid is not None:
+        asyncio.get_event_loop().create_task(_auto_hide_resolved(qid))
     return {"ok": True, "correct": correct}
 
 
