@@ -98,18 +98,27 @@ function render(st) {
   } else {
     cur.textContent = st.game_started ? "Keine aktive Runde" : "Spiel noch nicht gestartet";
   }
-  // question-limit progress bar
+  // question-limit progress bar (+ Stichfrage state)
   const qp = document.getElementById("qProgress");
   const qmax = st.round ? st.round.questions_max : null;
   const qasked = st.round ? (st.round.questions_asked || 0) : 0;
+  const tiebreak = !!(st.round && st.round.tiebreak);
   if (st.round && qmax) {
     qp.classList.remove("hidden");
     const fill = document.getElementById("qpFill");
     fill.style.width = Math.min(100, (100 * qasked) / qmax) + "%";
     fill.classList.toggle("full", qasked >= qmax);
-    document.getElementById("qpLabel").textContent =
-      `${qasked} / ${qmax} Fragen` +
-      (qasked >= qmax ? " – Limit erreicht, Runde beenden" : "");
+    if (tiebreak) {
+      const names = (st.round.tiebreak_slots || [])
+        .map((s) => (st.players.find((p) => p.slot === s) || {}).name)
+        .filter(Boolean).join(" vs. ");
+      document.getElementById("qpLabel").textContent =
+        `Stichfrage (Gleichstand): ${names || "?"} – nur diese buzzern`;
+    } else {
+      document.getElementById("qpLabel").textContent =
+        `${qasked} / ${qmax} Fragen` +
+        (qasked >= qmax ? " – Limit erreicht, Runde beenden" : "");
+    }
   } else {
     qp.classList.add("hidden");
   }
@@ -277,7 +286,7 @@ function render(st) {
   document.getElementById("btnStart").disabled = !(allPending && !st.round);
   document.getElementById("btnShow").disabled =
     !(st.round && (st.phase === "idle" || st.phase === "resolved")
-      && !(qmax && qasked >= qmax));
+      && !(qmax && qasked >= qmax && !tiebreak));
   document.getElementById("btnSkip").disabled = !(st.question);
   document.getElementById("btnHide").disabled = !(st.question);
   document.getElementById("btnReport").disabled = !(st.question);

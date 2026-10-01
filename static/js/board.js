@@ -75,6 +75,30 @@ let soundOn = true;
 tog.onclick = () => { soundOn = !soundOn; tog.textContent = soundOn ? "Ton: an" : "Ton: aus"; if (soundOn) ensureAudio(); };
 document.addEventListener("click", ensureAudio, { once: true });
 
+// ---------- intermission between rounds ----------
+// "QUIZ MIT BENNY" with a rotating set of goofy animations until the next
+// round starts. Animations are shuffled so each one appears once per cycle.
+const IM_ANIMS = ["im-rainbow", "im-bounce", "im-wave", "im-flip", "im-glitch", "im-zoom"];
+let imTimer = null;
+let imBag = [];
+
+function startIntermission() {
+  if (imTimer) return;
+  const t = document.getElementById("imTitle");
+  t.innerHTML = [..."QUIZ MIT BENNY"].map((c, i) =>
+    `<span style="--i:${i}">${c === " " ? "&nbsp;" : c}</span>`).join("");
+  const next = () => {
+    if (!imBag.length) imBag = IM_ANIMS.slice().sort(() => Math.random() - 0.5);
+    t.className = "im-title " + imBag.pop();
+  };
+  next();
+  imTimer = setInterval(next, 6000);
+}
+
+function stopIntermission() {
+  if (imTimer) { clearInterval(imTimer); imTimer = null; }
+}
+
 // ---------- admin check for click-to-buzz ----------
 fetch("/api/me").then((r) => r.json()).then((j) => { isAdmin = !!j.admin; }).catch(() => {});
 
@@ -141,7 +165,8 @@ function render(state) {
     aw.classList.toggle("no-anim", q.id === lastBoardQid);
     lastBoardQid = q.id;
     document.getElementById("qmeta").innerHTML =
-      (state.double_active ? `<span class="badge joker-active">2× PUNKTE</span>` : "") +
+      (state.round && state.round.tiebreak ? `<span class="badge joker-active">⚡ STICHFRAGE</span> ` : "") +
+      (state.double_active ? `<span class="badge joker-active">2× PUNKTE</span> ` : "") +
       (state.audience_voting ? `<span class="badge joker-active">👥 Publikum stimmt ab…</span>` : "");
     document.getElementById("qtext").textContent = q.text;
     aw.innerHTML = "";
@@ -177,6 +202,13 @@ function render(state) {
          : state.quiz_waiting ? "Quiz startet gleich" : "Nächste Runde")
       : "Quiz startet gleich";
   }
+
+  // intermission: game running, no active round, not the pre-game crawl
+  const betweenRounds =
+    state.game_started && !state.round && !state.quiz_waiting && !state.question;
+  document.getElementById("intermission").classList.toggle("hidden", !betweenRounds);
+  if (betweenRounds) { idle.classList.add("hidden"); startIntermission(); }
+  else stopIntermission();
 
   // sounds on phase transitions (only if this host is the sound target)
   const playHere = (state.sound_target || "board") !== "admin";

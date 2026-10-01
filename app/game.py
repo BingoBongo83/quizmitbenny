@@ -62,6 +62,7 @@ _state = {
     "audience_result": None,  # [pct1..4] after the moderator stops voting
     "audience_pick": None,  # majority answer (1-4) after stop
     "locked_answer": None,  # moderator's first click = lock-in, second = judge
+    "tiebreak_slots": None,  # Stichfrage: only these slots may buzz (None = all)
 }
 
 _subscribers = []  # ws connection manager is injected
@@ -180,7 +181,7 @@ def create_game(db: Session, player_ids: list[int], shuffle: bool = True):
             "fifty_hidden": [], "double_active": False,
             "audience_voting": False, "audience_votes": {},
             "audience_result": None, "audience_pick": None,
-            "locked_answer": None,
+            "locked_answer": None, "tiebreak_slots": None,
         })
         db.commit()
         _persist_state(db)
@@ -251,7 +252,7 @@ def finish_round(db: Session, round_id: int):
             "fifty_hidden": [], "double_active": False,
             "audience_voting": False, "audience_votes": {},
             "audience_result": None, "audience_pick": None,
-            "locked_answer": None,
+            "locked_answer": None, "tiebreak_slots": None,
         })
 
         if rnd.type == "final":
@@ -416,7 +417,7 @@ def start_round(db: Session, round_id: int):
                        "fifty_hidden": [], "double_active": False,
                        "audience_voting": False, "audience_votes": {},
                        "audience_result": None, "audience_pick": None,
-                       "locked_answer": None})
+                       "locked_answer": None, "tiebreak_slots": None})
         db.commit()
         _ensure_pending_question(db)
         _persist_state(db)
@@ -504,14 +505,47 @@ def max_questions(db: Session) -> int | None:
     return None
 
 
+def _advance_count(db: Session, rnd: Round) -> int:
+    """How many players advance directly from this round (0 = final)."""
+    s = get_all_settings(db)
+    n = s["players_per_round"]
+    if rnd.type == "preround":
+        prs = _stage_rounds(db, "preround")
+        return min(2, (2 * n) // len(prs)) if prs else 2
+    if rnd.type == "semifinal":
+        semis = _stage_rounds(db, "semifinal")
+        return min(2, n // len(semis)) if semis else 2
+    if rnd.type in ("playoff_presemi", "playoff_prefinal"):
+        return _read_playoff_advances(db, rnd.id)
+    return 0
+
+
+def tiebreak_players(db: Session, rnd: Round) -> list:
+    """RoundPlayers tied exactly at the advancement boundary.
+    Empty = round outcome is decided; non-empty = 'Stichfrage' needed."""
+    a = _advance_count(db, rnd)
+    if not a:
+        return []
+    ranked = _ranked_players(db, rnd.id)
+    if len(ranked) <= a or ranked[a - 1].score != ranked[a].score:
+        return []
+    boundary = ranked[a - 1].score
+    return [rp for rp in ranked if rp.score == boundary]
+
+
 def show_question(db: Session):
     """Moderator: show next question on the board and arm buzzers."""
     with _lock:
         rnd = db.get(Round, _state["round_id"]) if _state["round_id"] else None
         cap = max_questions(db)
+        _state["tiebreak_slots"] = None
         if rnd and cap and questions_asked(db, rnd.id) >= cap:
-            return None, (f"Fragen-Limit erreicht ({cap}) – "
-                          "bitte die Runde beenden.")
+            tied = tiebreak_players(db, rnd)
+            if not tied:
+                return None, (f"Fragen-Limit erreicht ({cap}) – "
+                              "bitte die Runde beenden.")
+            # Stichfrage: keep playing, but only the tied players may buzz
+            _state["tiebreak_slots"] = [rp.slot for rp in tied]
         q, src = None, None
         if _state["pending_question_id"]:
             src = _state.get("pending_source") or "q"
@@ -676,6 +710,9 @@ def buzzer_pressed(db: Session, buzzer_num: int):
     with _lock:
         if _state["phase"] != "question":
             return None, False
+        tb = _state.get("tiebreak_slots")
+        if tb and buzzer_num not in tb:
+            return buzzer_num, False
         if buzzer_num in _state["blocked_slots"]:
             return buzzer_num, False
         players = _active_round_players(db)
@@ -716,8 +753,11 @@ def pick_answer(db: Session, answer_idx: int):
         correct = (answer_idx == q.correct)
 
         mult = 2 if _state["double_active"] else 1
+        tie = _state.get("tiebreak_slots")
         rps = _active_round_players(db)
         for rp in rps:
+            if tie and rp.slot not in tie:
+                continue  # Stichfrage: only tied players score
             if rp.slot == slot:
                 rp.score += s["points_correct"] * mult if correct else s["points_wrong_self"]
             elif not correct:
@@ -769,20 +809,29 @@ def get_serial_socket():
 
 
 def serial_commands_for_phase():
-    """Arduino commands for current phase change."""
+    """Arduino commands for current phase change.
+
+    Blocked buzzers get their 0-based slot digit sent on every relevant phase
+    (like musikquiz does) so the strip keeps idling red, not only when a
+    question is armed."""
     phase = _state["phase"]
+    blocked = _state["blocked_slots"][0] if _state["blocked_slots"] else None
+    block_cmd = str(blocked - 1) if blocked else None
     if phase == "question":
         cmds = ["5"]  # reset
-        if _state["blocked_slots"]:
-            cmds.append(str(_state["blocked_slots"][0] - 1))  # 0-based block
-        else:
-            cmds.append("9")  # all active
+        cmds.append(block_cmd or "9")  # 0-based block | all active
         return cmds
     if phase == "resolved":
         picked, correct = _state["picked_answer"], _state["correct_answer"]
-        return ["G" if picked == correct else "R"]
+        cmds = ["G" if picked == correct else "R"]
+        if block_cmd:
+            cmds.append(block_cmd)
+        return cmds
     if phase == "idle":
-        return ["5"]
+        cmds = ["5"]
+        if block_cmd:
+            cmds.append(block_cmd)
+        return cmds
     return []
 
 
@@ -844,6 +893,8 @@ def board_state(db: Session) -> dict:
             "pool_label": pool_label,
             "questions_asked": questions_asked(db, rnd.id),
             "questions_max": max_questions(db),
+            "tiebreak": bool(_state.get("tiebreak_slots")),
+            "tiebreak_slots": _state.get("tiebreak_slots") or [],
         } if rnd else None,
         "players": players,
         "question": question,

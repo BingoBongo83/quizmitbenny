@@ -66,8 +66,8 @@ st = game.board_state(db)
 scores = {p["slot"]: p["score"] for p in st["players"]}
 assert scores[2] == 0 and scores[1] == 2, scores
 assert game.get_state()["blocked_slots"] == [2]
-assert game.serial_commands_for_phase() == ["R"]
-print("OK falsche Antwort: andere +2, Slot 2 gesperrt, cmd=R")
+assert game.serial_commands_for_phase() == ["R", "1"]  # wrong + block slot2 -> red
+print("OK falsche Antwort: andere +2, Slot 2 gesperrt, cmd=R+Sperre")
 
 # next question: blocked slot 2 can't buzz
 game.show_question(db)
@@ -360,6 +360,45 @@ types = [r.type for r in db.query(Round).all()]
 assert "playoff_presemi" not in types, types
 assert len(db.query(Round).filter(Round.type == "semifinal").all()) == 2
 print("OK Szenario 5x5: kein Playoff, direkte Qualifikation")
+
+# --- tiebreak (Stichfrage) at the question cap ---
+db.query(RoundPlayer).delete(); db.query(Round).delete()
+db.query(Question).update({Question.used: False})
+game.get_state().update({"phase": "idle", "round_id": None,
+                         "question_id": None, "question_source": None,
+                         "pending_question_id": None, "pending_source": None,
+                         "buzzed_slot": None, "picked_answer": None,
+                         "correct_answer": None, "blocked_slots": [],
+                         "game_started": False, "tiebreak_slots": None})
+set_setting(db, "players_per_round", 4)
+set_setting(db, "num_prerounds", 3)
+set_setting(db, "max_questions_enabled", True)
+set_setting(db, "max_questions", 1)
+game.create_game(db, [p.id for p in db.query(Player).order_by(Player.id).limit(12)],
+               shuffle=False)
+r1 = db.query(Round).order_by(Round.number).first()
+game.start_round(db, r1.id)
+# scores 6,4,4,0 -> top 2 advance -> tie at the boundary (4 vs 4)
+for rp, sc in zip(db.query(RoundPlayer).filter(
+        RoundPlayer.round_id == r1.id).order_by(RoundPlayer.slot), [6, 4, 4, 0]):
+    rp.score = sc
+db.commit()
+q, err = game.show_question(db)  # cap = 1: first question fine
+assert q and not err
+game.skip_question(db)
+q, err = game.show_question(db)  # cap reached, but tie -> Stichfrage
+assert q and not err
+assert game.get_state()["tiebreak_slots"] == [2, 3]
+assert game.buzzer_pressed(db, 1) == (1, False)  # non-tied may not buzz
+assert game.buzzer_pressed(db, 4) == (4, False)
+assert game.buzzer_pressed(db, 2)[1]
+res, _ = game.pick_answer(db, q.correct)   # lock-in
+res, _ = game.pick_answer(db, q.correct)   # judge -> slot2: 6 pts, tie broken
+q, err = game.show_question(db)            # cap blocks again
+assert q is None and "Limit" in err
+assert not game.get_state()["tiebreak_slots"]
+print("OK Stichfrage: Gleichstand am Limit -> nur Betroffene buzzern, dann beenden")
+set_setting(db, "max_questions_enabled", False)
 
 db.close()
 print("\nAlle Tests bestanden.")
