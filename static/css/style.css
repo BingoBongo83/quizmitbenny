@@ -385,6 +385,31 @@ label.field { display: block; margin: 10px 0 4px; color: var(--muted); font-size
   display: inline-block; flex: 0 0 auto;
   border: 1px solid rgba(255,255,255,.35);
 }
+.seat-dot.sm { width: 10px; height: 10px; vertical-align: 0; }
+
+/* admin rounds list */
+.round-card {
+  background: var(--card2);
+  border: 1px solid rgba(120,135,200,.18);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+.round-card.active { border-color: rgba(79,124,255,.55); box-shadow: 0 0 18px rgba(79,124,255,.15); }
+.round-card.finished { opacity: .65; }
+.rc-head { display: flex; align-items: center; gap: 10px; }
+.rc-head b { color: var(--gold); }
+.rc-actions { margin-left: auto; }
+.rc-players { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(11,15,36,.6);
+  border: 1px solid rgba(120,135,200,.25);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: .88em;
+}
+.chip b { color: var(--gold); }
 table.list { width: 100%; border-collapse: collapse; }
 table.list td, table.list th { padding: 6px 8px; border-bottom: 1px solid rgba(120,135,200,.15); text-align: left; font-size: .95em; }
 table.list th { color: var(--muted); font-size: .78em; text-transform: uppercase; letter-spacing: .1em; }

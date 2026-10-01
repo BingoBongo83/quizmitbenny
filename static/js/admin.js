@@ -124,15 +124,25 @@ function render(st) {
 
   // rounds list
   const rl = document.getElementById("roundsList");
+  const STATUS_LABEL = { pending: "ausstehend", active: "aktiv", finished: "beendet" };
   rl.innerHTML = st.rounds.map((r) => {
     const statusBadge = r.status === "active" ? "active" : r.status === "finished" ? "finished" : "";
-    const players = r.players.map((p) =>
-      `${esc(p.name)} (${p.score}${p.place ? ", Platz " + p.place : ""})`).join(", ");
+    const chips = r.players.map((p) => {
+      const hex = seatColors[p.slot - 1] || "#888";
+      return `<span class="chip">
+        <span class="seat-dot sm" style="background:${hex};box-shadow:0 0 6px ${hex}"></span>
+        ${esc(p.name)} <b>${p.score}</b>${p.place ? ` · Platz ${p.place}` : ""}</span>`;
+    }).join("");
     const startBtn = r.status === "pending" && !st.round
-      ? ` <button data-round="${r.id}" class="startRound">Starten</button>` : "";
-    return `<div style="margin:8px 0">
-      <span class="badge ${statusBadge}">${r.type_label}</span>
-      <b>#${r.number}</b> – ${players || "–"}${startBtn}</div>`;
+      ? `<button data-round="${r.id}" class="startRound primary">Starten</button>` : "";
+    return `<div class="round-card ${r.status}">
+      <div class="rc-head">
+        <b>#${r.number}</b> ${r.type_label}
+        <span class="badge ${statusBadge}">${STATUS_LABEL[r.status] || r.status}</span>
+        <span class="rc-actions">${startBtn}</span>
+      </div>
+      <div class="rc-players">${chips || '<span class="muted">–</span>'}</div>
+    </div>`;
   }).join("") || '<span class="muted">Keine Runden – erst unter Einstellungen ein Spiel erstellen.</span>';
   rl.querySelectorAll(".startRound").forEach((b) =>
     (b.onclick = () => post(`/api/game/round/${b.dataset.round}/start`)));

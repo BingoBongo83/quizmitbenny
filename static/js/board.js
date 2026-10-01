@@ -57,7 +57,7 @@ function render(state) {
   const rl = document.getElementById("roundLabel");
   rl.textContent = state.round
     ? `${state.round.type_label}${state.round.type === "preround" ? " " + state.round.number : ""}`
-    : "Quiz";
+    : "Quiz mit Benny";
 
   const wrap = document.getElementById("players");
   wrap.innerHTML = "";
