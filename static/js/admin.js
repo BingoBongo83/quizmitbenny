@@ -42,7 +42,7 @@ const sounds = {
 const SOUND_FILES = {
   question: "question", buzzed: "buzzer", correct: "correct",
   wrong: "wrong", joker_fifty: "joker", joker_double: "joker",
-  joker_audience: "joker",
+  joker_audience: "joker", joker_activate: "joker_activate",
 };
 const audioCache = {};
 function playSound(name) {
@@ -61,6 +61,7 @@ function playSound(name) {
 
 let prevFifty = false;
 let prevDouble = false;
+let prevArmed = false;
 let prevAudience = false;
 document.addEventListener("click", ensureAudio, { once: true });
 
@@ -259,13 +260,15 @@ function render(st) {
       }
     }
     const fiftyNow = (st.fifty_hidden || []).length > 0;
-    if (fiftyNow && !prevFifty) playSound("joker_fifty");
-    if (st.double_active && !prevDouble) playSound("joker_double");
+    if (fiftyNow && !prevFifty) { playSound("joker_activate"); playSound("joker_fifty"); }
+    if (st.double_active && !prevDouble) { playSound("joker_activate"); playSound("joker_double"); }
+    if (st.audience_armed && !prevArmed) playSound("joker_activate");
     if (st.audience_pick && !prevAudience) playSound("joker_audience");
   }
   prevPhase = st.phase;
   prevFifty = (st.fifty_hidden || []).length > 0;
   prevDouble = !!st.double_active;
+  prevArmed = !!st.audience_armed;
   prevAudience = !!st.audience_pick;
 }
 

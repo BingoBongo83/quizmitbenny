@@ -6,6 +6,7 @@ let prevScores = {};
 let prevPhase = "idle";
 let prevFifty = false;
 let prevDouble = false;
+let prevArmed = false;
 let prevAudience = false;
 let audio = null;
 
@@ -48,7 +49,7 @@ const sounds = {
 const SOUND_FILES = {
   question: "question", buzzed: "buzzer", correct: "correct",
   wrong: "wrong", joker_fifty: "joker", joker_double: "joker",
-  joker_audience: "joker",
+  joker_audience: "joker", joker_activate: "joker_activate",
 };
 const audioCache = {};
 function playSound(name) {
@@ -170,13 +171,15 @@ function render(state) {
     }
     // joker activation effects (not phase changes -> watch field transitions)
     const fiftyNow = (state.fifty_hidden || []).length > 0;
-    if (fiftyNow && !prevFifty) playSound("joker_fifty");
-    if (state.double_active && !prevDouble) playSound("joker_double");
+    if (fiftyNow && !prevFifty) { playSound("joker_activate"); playSound("joker_fifty"); }
+    if (state.double_active && !prevDouble) { playSound("joker_activate"); playSound("joker_double"); }
+    if (state.audience_armed && !prevArmed) playSound("joker_activate");
     if (state.audience_pick && !prevAudience) playSound("joker_audience");
   }
   prevPhase = state.phase;
   prevFifty = (state.fifty_hidden || []).length > 0;
   prevDouble = !!state.double_active;
+  prevArmed = !!state.audience_armed;
   prevAudience = !!state.audience_pick;
 }
 
