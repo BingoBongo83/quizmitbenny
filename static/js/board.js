@@ -81,6 +81,7 @@ function render(state) {
 
   const qbox = document.getElementById("questionBox");
   const idle = document.getElementById("idleBox");
+  document.querySelector(".board").classList.toggle("idle-mode", !state.question);
   if (state.question) {
     qbox.classList.remove("hidden");
     idle.classList.add("hidden");
