@@ -309,6 +309,35 @@ h1, h2, h3 { font-weight: 700; }
   to { background-position: -200% 0; }
 }
 
+/* Star-Wars-Intro (vor Quizstart) */
+.crawl {
+  position: absolute; inset: 0; z-index: 20; overflow: hidden;
+  background: var(--bg);
+  perspective: 42vh;
+}
+.crawl-plane {
+  position: absolute; inset: 0 12%;
+  transform-origin: 50% 100%;
+  transform: rotateX(58deg);
+}
+.crawl-text {
+  position: absolute; top: 105%; left: 0; right: 0;
+  animation: crawlMove 80s linear infinite;
+  color: var(--gold); text-align: justify;
+  font-size: 4.6vh; font-weight: 700; line-height: 1.55;
+  text-shadow: 0 0 2vh rgba(255,215,0,.35);
+}
+.crawl-head {
+  text-align: center; font-size: 7vh; letter-spacing: .12em;
+  margin-bottom: 4vh;
+}
+.crawl-ep {
+  text-align: center; font-size: 4.2vh; letter-spacing: .18em;
+  margin-bottom: 8vh; color: #ffe680;
+}
+.crawl-text p { margin: 0 0 6vh; }
+@keyframes crawlMove { to { transform: translateY(-115%); } }
+
 .sound-toggle {
   position: fixed;
   right: 16px; bottom: 14px;

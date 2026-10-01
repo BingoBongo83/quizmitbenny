@@ -123,6 +123,14 @@ function render(state) {
 
   const qbox = document.getElementById("questionBox");
   const idle = document.getElementById("idleBox");
+  const crawl = document.getElementById("crawl");
+  const waiting = !state.game_started || !!state.quiz_waiting;
+  if (waiting && crawl.classList.contains("hidden")) {
+    // restart the scroll from the beginning each time it appears
+    const t = crawl.querySelector(".crawl-text");
+    t.style.animation = "none"; void t.offsetHeight; t.style.animation = "";
+  }
+  crawl.classList.toggle("hidden", !waiting || !!state.question);
   document.querySelector(".board").classList.toggle("idle-mode", !state.question);
   if (state.question) {
     qbox.classList.remove("hidden");
