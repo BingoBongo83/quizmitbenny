@@ -1,5 +1,5 @@
 const LETTERS = ["A", "B", "C", "D"];
-const SLOT_COLORS = ["#4f7cff", "#2ee56f", "#ffbe3c", "#ff4d5e", "#b16bff"];
+const DEFAULT_SEAT_COLORS = ["#2e6bff", "#ffd23c", "#ff8c1a", "#ff5ec4", "#2ee56f"];
 
 let isAdmin = false;
 let prevScores = {};
@@ -61,13 +61,17 @@ function render(state) {
 
   const wrap = document.getElementById("players");
   wrap.innerHTML = "";
+  const seatColors = state.seat_colors && state.seat_colors.length
+    ? state.seat_colors : DEFAULT_SEAT_COLORS;
   state.players.forEach((p) => {
     const d = document.createElement("div");
     d.className = "player-card"
       + (p.buzzed ? " buzzed" : "")
       + (p.blocked ? " blocked" : "")
       + (isAdmin ? " clickable" : "");
-    d.style.setProperty("--slot", SLOT_COLORS[p.slot - 1] || "#888");
+    const hex = seatColors[p.slot - 1] || "#888";
+    d.style.setProperty("--slot", hex);
+    d.style.setProperty("--slot-glow", hex + "66");  // 40% alpha
     const pop = prevScores[p.slot] !== undefined && prevScores[p.slot] !== p.score;
     d.innerHTML = `<div class="pname">${esc(p.name)}</div>
                    <div class="pscore${pop ? " pop" : ""}">${p.score}</div>`;

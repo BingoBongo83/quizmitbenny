@@ -68,13 +68,16 @@ function render(st) {
     cur.textContent = st.game_started ? "Keine aktive Runde" : "Spiel noch nicht gestartet";
   }
   const tbl = document.getElementById("curPlayers");
+  const seatColors = (st.seat_colors && st.seat_colors.length) ? st.seat_colors : [];
   tbl.innerHTML = "<tr><th>Slot</th><th>Spieler</th><th>Punkte</th><th></th></tr>" +
-    st.players.map((p) =>
-      `<tr class="buzzsim ${p.buzzed ? "buzzed" : ""} ${p.blocked ? "blocked" : ""}"
+    st.players.map((p) => {
+      const hex = seatColors[p.slot - 1] || "#888";
+      return `<tr class="buzzsim ${p.buzzed ? "buzzed" : ""} ${p.blocked ? "blocked" : ""}"
            data-slot="${p.slot}" title="Klicken = Buzzer simulieren">
-        <td>${p.slot}</td><td>${esc(p.name)}</td><td>${p.score}</td>
-        <td>${p.buzzed ? "GEBUZZERT" : p.blocked ? "gesperrt" : ""}</td></tr>`
-    ).join("");
+        <td>${p.slot} <span class="seat-dot" style="background:${hex};box-shadow:0 0 8px ${hex}"></span></td>
+        <td>${esc(p.name)}</td><td>${p.score}</td>
+        <td>${p.buzzed ? "GEBUZZERT" : p.blocked ? "gesperrt" : ""}</td></tr>`;
+    }).join("");
   tbl.querySelectorAll("tr.buzzsim").forEach((row) =>
     (row.onclick = () => QuizWS.send({ type: "buzzer", buzzer: +row.dataset.slot })));
 

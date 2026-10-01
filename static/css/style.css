@@ -129,6 +129,8 @@ h1, h2, h3 { font-weight: 700; }
   min-width: 15vw;
   text-align: center;
   backdrop-filter: blur(10px);
+  box-shadow: 0 0 30px var(--slot-glow, transparent),
+              inset 0 0 18px rgba(0,0,0,.25);
   transition: transform .2s, box-shadow .25s, opacity .2s,
               padding .5s ease, min-width .5s ease;
 }
@@ -154,15 +156,16 @@ h1, h2, h3 { font-weight: 700; }
   100% { transform: scale(1); }
 }
 .player-card.buzzed {
-  border-color: var(--gold);
-  box-shadow: 0 0 45px rgba(255,190,60,.55), inset 0 0 30px rgba(255,190,60,.1);
+  border-color: var(--slot);
+  box-shadow: 0 0 50px var(--slot), 0 0 90px var(--slot-glow),
+              inset 0 0 30px var(--slot-glow);
   animation: buzzPulse .7s ease-in-out infinite alternate;
 }
 .player-card.buzzed::after {
   content: "";
   position: absolute; inset: -6px;
   border-radius: calc(var(--radius) + 6px);
-  border: 2px solid rgba(255,190,60,.7);
+  border: 2px solid var(--slot);
   animation: ringGrow 1s ease-out infinite;
   pointer-events: none;
 }
@@ -377,6 +380,11 @@ label.field { display: block; margin: 10px 0 4px; color: var(--muted); font-size
 .player-row input[type=text] { flex: 1; min-width: 140px; }
 .player-row.bench { opacity: .55; }
 .player-row.inactive { opacity: .4; }
+.seat-dot {
+  width: 16px; height: 16px; border-radius: 50%;
+  display: inline-block; flex: 0 0 auto;
+  border: 1px solid rgba(255,255,255,.35);
+}
 table.list { width: 100%; border-collapse: collapse; }
 table.list td, table.list th { padding: 6px 8px; border-bottom: 1px solid rgba(120,135,200,.15); text-align: left; font-size: .95em; }
 table.list th { color: var(--muted); font-size: .78em; text-transform: uppercase; letter-spacing: .1em; }

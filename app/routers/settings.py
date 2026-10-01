@@ -33,6 +33,7 @@ class SettingsBody(BaseModel):
     points_wrong_others: int | None = None
     block_on_wrong: bool | None = None
     sound_target: str | None = None
+    seat_colors: list[str] | None = None
     skills_preround: list[int] | None = None
     skills_playoff: list[int] | None = None
     skills_semifinal: list[int] | None = None
@@ -116,6 +117,12 @@ def update_settings(body: SettingsBody):
             raise HTTPException(400, "Vorrunden muss 3-5 sein")
         if "sound_target" in data and data["sound_target"] not in ("board", "admin", "both"):
             raise HTTPException(400, "Ungültiges Sound-Ziel")
+        if "seat_colors" in data:
+            import re
+            if not data["seat_colors"] or not all(
+                re.fullmatch(r"#[0-9a-fA-F]{6}", c) for c in data["seat_colors"]
+            ):
+                raise HTTPException(400, "Platz-Farben müssen #RRGGBB sein")
         for k, v in data.items():
             if k.startswith("skills_") and not all(1 <= s <= 5 for s in v):
                 raise HTTPException(400, "Skill-Level müssen 1-5 sein")

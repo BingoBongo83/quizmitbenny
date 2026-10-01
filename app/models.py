@@ -135,6 +135,8 @@ DEFAULT_SETTINGS = {
     "points_wrong_others": 2,
     "block_on_wrong": True,
     "sound_target": "board",  # board | admin | both
+    # seat (slot) colors — bound to the physical buzzer position, not players
+    "seat_colors": ["#2e6bff", "#ffd23c", "#ff8c1a", "#ff5ec4", "#2ee56f"],
     "skills_preround": [1, 2, 3],
     "skills_playoff": [3, 4],
     "skills_semifinal": [3, 4, 5],

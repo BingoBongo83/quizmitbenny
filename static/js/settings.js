@@ -23,6 +23,13 @@ const SKILL_SETS = [
   ["skills_final", "Finale"],
 ];
 
+const BUZZER_COLORS = [
+  ["#2e6bff", "Blau"], ["#ffd23c", "Gelb"], ["#ff8c1a", "Orange"],
+  ["#ff5ec4", "Pink"], ["#2ee56f", "Grün"], ["#e8ecf8", "Weiß"],
+  ["#ff4d5e", "Rot"],
+];
+const SEAT_COUNT = 5;
+
 // ---------------- tabs ----------------
 document.querySelectorAll(".tab-btn").forEach((b) => {
   b.onclick = () => {
@@ -115,6 +122,21 @@ async function loadSettings() {
   document.getElementById("s_block").checked = settings.block_on_wrong;
   document.getElementById("s_sound").value = settings.sound_target || "board";
 
+  const sc = document.getElementById("seatColors");
+  const seatColors = settings.seat_colors || [];
+  sc.innerHTML = Array.from({ length: SEAT_COUNT }, (_, i) => `
+    <div class="player-row">
+      <span class="seat-dot" style="background:${seatColors[i] || "#888"}"></span>
+      <b>Platz ${i + 1}</b>
+      <select class="seatSel" data-seat="${i}">` +
+      BUZZER_COLORS.map(([hex, name]) =>
+        `<option value="${hex}"${seatColors[i] === hex ? " selected" : ""}>${name}</option>`).join("") +
+      `</select>
+    </div>`).join("");
+  sc.querySelectorAll(".seatSel").forEach((sel) => (sel.onchange = () => {
+    sel.closest(".player-row").querySelector(".seat-dot").style.background = sel.value;
+  }));
+
   const sk = document.getElementById("skillSets");
   sk.innerHTML = SKILL_SETS.map(([key, label]) => `
     <div style="margin:8px 0"><b>${label}:</b> ` +
@@ -133,6 +155,7 @@ document.getElementById("saveSettings").onclick = async () => {
     points_wrong_others: +document.getElementById("s_pwo").value,
     block_on_wrong: document.getElementById("s_block").checked,
     sound_target: document.getElementById("s_sound").value,
+    seat_colors: [...document.querySelectorAll(".seatSel")].map((s) => s.value),
   };
   SKILL_SETS.forEach(([key]) => {
     body[key] = [...document.querySelectorAll(`input[data-set="${key}"]:checked`)]
