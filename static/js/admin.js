@@ -125,6 +125,8 @@ function render(st) {
     cq.textContent = `Frage (Skill ${st.question.skill}${st.question.category ? ", " + st.question.category : ""})`;
     cqt.textContent = st.question.text;
     const hidden = st.fifty_hidden || [];
+    const locked = st.locked_answer;
+    const apct = st.audience_result || [];
     st.question.answers.forEach((a, i) => {
       const b = document.createElement("button");
       let cls = "";
@@ -134,14 +136,16 @@ function render(st) {
       }
       if (hidden.includes(i + 1)) cls += " fifty-hidden";
       if (st.audience_pick === i + 1) cls += " audience-pick";
+      if (locked === i + 1) cls += " locked";
       b.className = cls;
       b.innerHTML = `<span class="letter">${LETTERS[i]}</span>${esc(a)}` +
         (i + 1 === st.question.correct ? " ✓" : "") +
+        (apct.length ? ` <span class="apct-admin">${apct[i]}%</span>` : "") +
+        (locked === i + 1 ? ` <span class="badge">eingeloggt</span>` : "") +
         (st.audience_pick === i + 1 ? ` <span class="badge">Publikum</span>` : "");
-      b.disabled = st.phase !== "buzzed" || hidden.includes(i + 1);
-      b.onclick = () => post(
-        st.audience_armed ? "/api/game/audience" : "/api/game/answer",
-        { answer: i + 1 });
+      b.disabled = st.phase !== "buzzed" || hidden.includes(i + 1)
+        || st.audience_voting || (locked && locked !== i + 1);
+      b.onclick = () => post("/api/game/answer", { answer: i + 1 });
       btns.appendChild(b);
     });
     if (st.phase === "buzzed") {
@@ -182,10 +186,20 @@ function render(st) {
         b.onclick = () => post("/api/game/joker", { kind: k });
         jb.appendChild(b);
       });
-      if (st.audience_armed) {
+      if (st.audience_voting) {
         const hint = document.createElement("span");
         hint.className = "audience-hint";
-        hint.textContent = "→ Publikum wählen: Antwort anklicken";
+        hint.innerHTML = `👥 Publikum stimmt ab… <b>${st.audience_votes || 0} Stimmen</b> `;
+        jb.appendChild(hint);
+        const stop = document.createElement("button");
+        stop.className = "joker-btn";
+        stop.textContent = "Voting beenden";
+        stop.onclick = () => post("/api/game/audience/stop");
+        jb.appendChild(stop);
+      } else if (st.locked_answer) {
+        const hint = document.createElement("span");
+        hint.className = "audience-hint";
+        hint.textContent = `Antwort ${LETTERS[st.locked_answer - 1]} eingeloggt – nochmal klicken zum Werten`;
         jb.appendChild(hint);
       }
     }
@@ -262,13 +276,13 @@ function render(st) {
     const fiftyNow = (st.fifty_hidden || []).length > 0;
     if (fiftyNow && !prevFifty) { playSound("joker_activate"); playSound("joker_fifty"); }
     if (st.double_active && !prevDouble) { playSound("joker_activate"); playSound("joker_double"); }
-    if (st.audience_armed && !prevArmed) playSound("joker_activate");
+    if (st.audience_voting && !prevArmed) playSound("joker_activate");
     if (st.audience_pick && !prevAudience) playSound("joker_audience");
   }
   prevPhase = st.phase;
   prevFifty = (st.fifty_hidden || []).length > 0;
   prevDouble = !!st.double_active;
-  prevArmed = !!st.audience_armed;
+  prevArmed = !!st.audience_voting;
   prevAudience = !!st.audience_pick;
 }
 

@@ -416,6 +416,73 @@ label.field { display: block; margin: 10px 0 4px; color: var(--muted); font-size
   border-color: rgba(255,210,60,.7); box-shadow: 0 0 16px rgba(255,210,60,.25);
 }
 
+/* audience vote result: translucent bar + percent on the board */
+.answer { position: relative; overflow: hidden; }
+.answer .abar {
+  position: absolute; inset: 0; width: 0;
+  background: rgba(79,124,255,.28);
+  border-right: 2px solid rgba(79,124,255,.7);
+  transition: width .8s ease;
+}
+.answer > .letter, .answer > span:not(.abar), .answer .apct {
+  position: relative;
+}
+.answer .apct {
+  margin-left: auto; font-weight: 800;
+  color: #bcd0ff; font-size: .85em;
+}
+.answer.locked {
+  border-color: var(--gold);
+  box-shadow: 0 0 22px rgba(255,210,60,.5);
+  animation: lockpulse 1s ease-in-out infinite alternate;
+}
+.answer-btns button.locked {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 18px rgba(255,210,60,.45);
+}
+@keyframes lockpulse {
+  from { box-shadow: 0 0 10px rgba(255,210,60,.3); }
+  to { box-shadow: 0 0 26px rgba(255,210,60,.65); }
+}
+.apct-admin { color: var(--accent2); font-weight: 700; font-size: .85em; }
+
+/* /audience page */
+.audience-page { background: var(--bg); }
+.aud-wrap {
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 24px; text-align: center;
+}
+.aud-title { font-size: 2em; margin-bottom: 24px; color: var(--gold); }
+.aud-wait p { margin-top: 18px; font-size: 1.1em; }
+.wave { display: flex; gap: 8px; justify-content: center; align-items: flex-end; height: 60px; }
+.wave span {
+  width: 10px; border-radius: 5px; background: var(--accent);
+  animation: wave 1.1s ease-in-out infinite;
+}
+.wave span:nth-child(1) { animation-delay: 0s; }
+.wave span:nth-child(2) { animation-delay: .12s; }
+.wave span:nth-child(3) { animation-delay: .24s; }
+.wave span:nth-child(4) { animation-delay: .36s; }
+.wave span:nth-child(5) { animation-delay: .48s; }
+@keyframes wave { 0%, 100% { height: 14px; } 50% { height: 56px; } }
+.aud-q { font-size: 1.4em; font-weight: 700; margin-bottom: 22px; max-width: 640px; }
+.aud-answers {
+  display: grid; grid-template-columns: 1fr; gap: 12px;
+  width: 100%; max-width: 480px;
+}
+.aud-btn {
+  font-size: 1.25em; padding: 18px; text-align: left;
+  border: 2px solid rgba(120,135,200,.35); border-radius: var(--radius);
+  background: var(--card); color: var(--fg);
+}
+.aud-btn .letter { color: var(--gold); font-weight: 800; margin-right: 10px; }
+.aud-btn.mine {
+  border-color: var(--green);
+  box-shadow: 0 0 18px rgba(46,229,111,.4);
+  background: rgba(46,229,111,.12);
+}
+
 /* admin rounds list */
 .round-card {
   background: var(--card2);

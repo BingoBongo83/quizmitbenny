@@ -54,6 +54,12 @@ assert ok and slot == 2
 slot, ok = game.buzzer_pressed(db, 3)
 assert not ok
 # wrong answer → others +2, slot 2 blocked
+# (lock-in: first click locks, second click judges)
+res, _ = game.pick_answer(db, 2)
+assert res == "locked", res
+# other answers are rejected while locked
+res, _ = game.pick_answer(db, 3)
+assert res == "locked"
 correct, _ = game.pick_answer(db, 2)
 assert correct is False
 st = game.board_state(db)
@@ -70,6 +76,7 @@ slot, ok = game.buzzer_pressed(db, 2)
 assert not ok
 slot, ok = game.buzzer_pressed(db, 1)
 assert ok
+game.pick_answer(db, 1)  # lock-in click
 correct, _ = game.pick_answer(db, 1)
 assert correct is True
 rp = db.query(RoundPlayer).filter(RoundPlayer.round_id == r1.id, RoundPlayer.slot == 1).first()
@@ -178,8 +185,9 @@ game.get_state().update({"phase": "idle", "round_id": None,
                          "correct_answer": None, "blocked_slots": [],
                          "game_started": False,
                          "jokers": {}, "fifty_hidden": [],
-                         "double_active": False, "audience_armed": False,
-                         "audience_pick": None})
+                         "double_active": False, "audience_voting": False,
+                         "audience_votes": {}, "audience_result": None,
+                         "audience_pick": None, "locked_answer": None})
 from app.models import set_setting
 set_setting(db, "players_per_round", 4)
 set_setting(db, "num_prerounds", 3)
@@ -208,6 +216,8 @@ assert not ok and "verbraucht" in err
 ok, err = game.use_joker(db, "double")
 assert ok, err
 assert game.get_state()["double_active"]
+res, _ = game.pick_answer(db, q.correct)
+assert res == "locked"
 correct, _ = game.pick_answer(db, q.correct)
 assert correct
 rp = db.query(RoundPlayer).filter(
@@ -216,17 +226,28 @@ assert rp.score == 4, rp.score
 assert not game.get_state()["double_active"] or game.get_state()["phase"] == "resolved"
 print("OK Joker: 50:50 + doppelte Punkte (2x auf richtig)")
 
-# audience joker: moderator picks the audience's answer
+# audience joker: /audience vote -> moderator stops -> bars on board
 q, _ = game.show_question(db)
 slot, ok = game.buzzer_pressed(db, 1)
 assert ok
 ok, err = game.use_joker(db, "audience")
 assert ok, err
-assert game.get_state()["audience_armed"]
-assert game.set_audience_pick(db, 2)
+assert game.get_state()["audience_voting"]
+# three audience votes (recast allowed -> last counts)
+assert game.audience_vote(db, "v1", 2)
+assert game.audience_vote(db, "v2", 2)
+assert game.audience_vote(db, "v2", 1)  # v2 changes vote
+assert game.audience_vote(db, "v3", 1)
+assert not game.audience_vote(db, "v4", 9)  # invalid answer
+assert game.stop_audience_voting(db)
 st = game.board_state(db)
-assert st["audience_pick"] == 2 and not st["audience_armed"]
+assert not st["audience_voting"]
+assert st["audience_result"] == [67, 33, 0, 0], st["audience_result"]
+assert st["audience_pick"] == 1  # majority (first max)
+assert not game.audience_vote(db, "v5", 3)  # voting closed
+game.pick_answer(db, q.correct)
 correct, _ = game.pick_answer(db, q.correct)
+assert correct is True
 j = game.board_state(db)["players"][0]["jokers"]
 assert j == {"fifty": True, "double": True, "audience": True}, j
 print("OK Joker: Publikumsjoker + Verbrauch-Tracking pro Spieler")

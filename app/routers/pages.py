@@ -20,6 +20,11 @@ def board2(request: Request):
     return templates.TemplateResponse(request, "board.html")
 
 
+@router.get("/audience")
+def audience(request: Request):
+    return templates.TemplateResponse(request, "audience.html")
+
+
 @router.get("/login")
 def login_page(request: Request):
     return templates.TemplateResponse(request, "login.html", {"error": ""})

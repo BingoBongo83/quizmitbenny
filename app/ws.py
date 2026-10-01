@@ -4,6 +4,7 @@ Channels:
   - board:  public scoreboard clients (state broadcasts)
   - admin:  moderator panels (state broadcasts + serial commands for WebSerial)
   - buzzer: serial bridge clients (send buzzer events, receive serial commands)
+  - audience: public voting page (state broadcasts, sends audience_vote)
 """
 
 import json
@@ -22,6 +23,7 @@ class ConnectionManager:
         self.board: set[WebSocket] = set()
         self.admin: set[WebSocket] = set()
         self.buzzer: set[WebSocket] = set()
+        self.audience: set[WebSocket] = set()
         # board sockets opened with an admin session may send buzzer events
         self.board_privileged: set[WebSocket] = set()
 
@@ -35,6 +37,7 @@ class ConnectionManager:
         self.board.discard(ws)
         self.admin.discard(ws)
         self.buzzer.discard(ws)
+        self.audience.discard(ws)
         self.board_privileged.discard(ws)
         if game.get_serial_socket() is ws:
             game.set_serial_socket(None)
@@ -59,6 +62,7 @@ class ConnectionManager:
             db.close()
         await self.broadcast("board", board_msg)
         await self.broadcast("admin", admin_msg)
+        await self.broadcast("audience", board_msg)
 
     async def send_serial(self, cmds: list[str]):
         """Send Arduino commands to the serial-owning client."""
@@ -94,6 +98,20 @@ async def handle_buzzer_message(ws: WebSocket, data: dict):
         db = SessionLocal()
         try:
             slot, ok = game.buzzer_pressed(db, num)
+        finally:
+            db.close()
+        if ok:
+            await broadcast_state_and_serial()
+        return
+    if t == "audience_vote":
+        try:
+            ans = int(data.get("answer"))
+        except (TypeError, ValueError):
+            return
+        voter = str(data.get("voter") or "")[:64]
+        db = SessionLocal()
+        try:
+            ok = game.audience_vote(db, voter, ans)
         finally:
             db.close()
         if ok:

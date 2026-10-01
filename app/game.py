@@ -57,8 +57,11 @@ _state = {
     "jokers": {},
     "fifty_hidden": [],     # answer indexes (0-3) hidden by the 50:50 joker
     "double_active": False,  # current question counts double
-    "audience_armed": False,  # moderator is about to pick the audience answer
-    "audience_pick": None,  # 1-4
+    "audience_voting": False,  # /audience voting open
+    "audience_votes": {},   # voter_id -> answer 1-4
+    "audience_result": None,  # [pct1..4] after the moderator stops voting
+    "audience_pick": None,  # majority answer (1-4) after stop
+    "locked_answer": None,  # moderator's first click = lock-in, second = judge
 }
 
 _subscribers = []  # ws connection manager is injected
@@ -178,7 +181,9 @@ def create_game(db: Session, player_ids: list[int], shuffle: bool = True):
             "jokers": {str(pid): {"fifty": False, "double": False,
                                  "audience": False} for pid in ids},
             "fifty_hidden": [], "double_active": False,
-            "audience_armed": False, "audience_pick": None,
+            "audience_voting": False, "audience_votes": {},
+            "audience_result": None, "audience_pick": None,
+            "locked_answer": None,
         })
         db.commit()
         _persist_state(db)
@@ -248,7 +253,9 @@ def finish_round(db: Session, round_id: int):
             "picked_answer": None, "correct_answer": None,
             "blocked_slots": [], "round_id": None,
             "fifty_hidden": [], "double_active": False,
-            "audience_armed": False, "audience_pick": None,
+            "audience_voting": False, "audience_votes": {},
+            "audience_result": None, "audience_pick": None,
+            "locked_answer": None,
         })
 
         if rnd.type == "final":
@@ -411,7 +418,9 @@ def start_round(db: Session, round_id: int):
                        "picked_answer": None, "correct_answer": None,
                        "blocked_slots": [],
                        "fifty_hidden": [], "double_active": False,
-                       "audience_armed": False, "audience_pick": None})
+                       "audience_voting": False, "audience_votes": {},
+                       "audience_result": None, "audience_pick": None,
+                       "locked_answer": None})
         db.commit()
         _ensure_pending_question(db)
         _persist_state(db)
@@ -509,7 +518,9 @@ def show_question(db: Session):
             "picked_answer": None,
             "correct_answer": None,
             "fifty_hidden": [], "double_active": False,
-            "audience_armed": False, "audience_pick": None,
+            "audience_voting": False, "audience_votes": {},
+            "audience_result": None, "audience_pick": None,
+            "locked_answer": None,
         })
         db.commit()
         _ensure_pending_question(db)  # preview the next one
@@ -526,7 +537,9 @@ def skip_question(db: Session):
             "phase": "idle", "question_id": None, "question_source": None,
             "buzzed_slot": None, "picked_answer": None, "correct_answer": None,
             "fifty_hidden": [], "double_active": False,
-            "audience_armed": False, "audience_pick": None,
+            "audience_voting": False, "audience_votes": {},
+            "audience_result": None, "audience_pick": None,
+            "locked_answer": None,
         })
         _ensure_pending_question(db)
         _persist_state(db)
@@ -561,7 +574,9 @@ def report_question(db: Session, which: str = "current"):
             "phase": "idle", "question_id": None, "question_source": None,
             "buzzed_slot": None, "picked_answer": None, "correct_answer": None,
             "fifty_hidden": [], "double_active": False,
-            "audience_armed": False, "audience_pick": None,
+            "audience_voting": False, "audience_votes": {},
+            "audience_result": None, "audience_pick": None,
+            "locked_answer": None,
         })
         db.commit()
         _persist_state(db)
@@ -595,18 +610,40 @@ def use_joker(db: Session, kind: str):
         elif kind == "double":
             _state["double_active"] = True
         elif kind == "audience":
-            _state["audience_armed"] = True
+            _state["audience_voting"] = True
+            _state["audience_votes"] = {}
+            _state["audience_result"] = None
+            _state["audience_pick"] = None
         _persist_state(db)
         return True, None
 
 
-def set_audience_pick(db: Session, answer_idx: int):
-    """After the audience joker: moderator picks what the audience thinks."""
+def audience_vote(db: Session, voter: str, answer_idx: int):
+    """Audience member votes on /audience while voting is open.
+    Recasting is allowed – last vote counts."""
     with _lock:
-        if not _state["audience_armed"]:
+        if not _state["audience_voting"]:
             return False
-        _state["audience_pick"] = answer_idx
-        _state["audience_armed"] = False
+        if not voter or not 1 <= answer_idx <= 4:
+            return False
+        _state["audience_votes"][str(voter)] = answer_idx
+        _persist_state(db)
+        return True
+
+
+def stop_audience_voting(db: Session):
+    """Moderator ends the vote -> percentages go on the board."""
+    with _lock:
+        if not _state["audience_voting"]:
+            return False
+        votes = _state["audience_votes"]
+        total = len(votes)
+        counts = [sum(1 for v in votes.values() if v == i) for i in range(1, 5)]
+        _state["audience_result"] = (
+            [round(100 * c / total) for c in counts] if total else [0, 0, 0, 0])
+        _state["audience_pick"] = (
+            counts.index(max(counts)) + 1 if total else None)
+        _state["audience_voting"] = False
         _persist_state(db)
         return True
 
@@ -636,14 +673,25 @@ def buzzer_pressed(db: Session, buzzer_num: int):
 
 
 def pick_answer(db: Session, answer_idx: int):
-    """Admin clicked the answer the buzzed player chose. Auto-judge.
-    Returns (correct: bool, question)."""
+    """Moderator clicks the answer the buzzed player chose.
+    First click locks it in ("eingeloggt"), second click on the same
+    answer judges it. Other answers are ignored while one is locked.
+    Returns (outcome, question) with outcome in {"locked", True, False, None}."""
     with _lock:
         if _state["phase"] != "buzzed":
             return None, None
         q = get_question(db)
         if not q:
             return None, None
+        locked = _state["locked_answer"]
+        if locked is None:
+            _state["locked_answer"] = answer_idx
+            _persist_state(db)
+            return "locked", q
+        if answer_idx != locked:
+            return "locked", q
+        _state["locked_answer"] = None
+        answer_idx = locked
         s = get_all_settings(db)
         slot = _state["buzzed_slot"]
         correct = (answer_idx == q.correct)
@@ -678,7 +726,9 @@ def unshow_question(db: Session):
             "phase": "idle", "question_source": None, "buzzed_slot": None,
             "picked_answer": None, "correct_answer": None,
             "fifty_hidden": [], "double_active": False,
-            "audience_armed": False, "audience_pick": None,
+            "audience_voting": False, "audience_votes": {},
+            "audience_result": None, "audience_pick": None,
+            "locked_answer": None,
         })
         _persist_state(db)
 
@@ -775,8 +825,11 @@ def board_state(db: Session) -> dict:
         "game_started": _state["game_started"],
         "fifty_hidden": _state["fifty_hidden"],
         "double_active": _state["double_active"],
-        "audience_armed": _state["audience_armed"],
+        "audience_voting": _state["audience_voting"],
+        "audience_votes": len(_state["audience_votes"]),
+        "audience_result": _state["audience_result"],
         "audience_pick": _state["audience_pick"],
+        "locked_answer": _state["locked_answer"],
         "jokers_enabled": [
             k for k in ("fifty", "double", "audience")
             if get_setting(db, f"joker_{k}")],

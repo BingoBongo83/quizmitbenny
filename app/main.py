@@ -94,6 +94,9 @@ async def _ws_loop(ws: WebSocket, channel: str, privileged: bool = False):
             except ValueError:
                 continue
             if channel in ("admin", "buzzer") or (
+                channel == "audience"
+                and data.get("type") == "audience_vote"
+            ) or (
                 channel == "board" and data.get("type") == "buzzer"
                 and may_buzz(ws)
             ):
@@ -123,6 +126,11 @@ async def ws_admin(ws: WebSocket):
         await ws.close(code=4401)
         return
     await _ws_loop(ws, "admin")
+
+
+@app.websocket("/ws/audience")
+async def ws_audience(ws: WebSocket):
+    await _ws_loop(ws, "audience")
 
 
 @app.websocket("/ws/buzzer")

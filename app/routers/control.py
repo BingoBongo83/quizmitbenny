@@ -188,14 +188,13 @@ async def use_joker(body: JokerBody):
     return {"ok": True}
 
 
-@router.post("/audience")
-async def audience_pick(body: AnswerBody):
-    if not 1 <= body.answer <= 4:
-        raise HTTPException(400, "Antwort 1-4 erwartet")
+@router.post("/audience/stop")
+async def audience_stop():
+    """Moderator ends the audience vote -> percentages go on the board."""
     db = next(get_db())
     try:
-        if not game.set_audience_pick(db, body.answer):
-            raise HTTPException(400, "Publikumsjoker nicht aktiv")
+        if not game.stop_audience_voting(db):
+            raise HTTPException(400, "Publikums-Abstimmung läuft nicht")
     finally:
         db.close()
     await broadcast_state_and_serial()
@@ -206,16 +205,16 @@ async def audience_pick(body: AnswerBody):
 async def pick_answer(body: AnswerBody):
     db = next(get_db())
     try:
-        correct, q = game.pick_answer(db, body.answer)
-        if correct is None:
+        outcome, q = game.pick_answer(db, body.answer)
+        if outcome is None:
             raise HTTPException(400, "Kein gebuzzerter Spieler / keine Frage aktiv")
-        qid = q.id if q else None
+        qid = q.id if q and outcome != "locked" else None
     finally:
         db.close()
     await broadcast_state_and_serial()
     if qid is not None:
         asyncio.get_event_loop().create_task(_auto_hide_resolved(qid))
-    return {"ok": True, "correct": correct}
+    return {"ok": True, "outcome": outcome}
 
 
 @router.get("/state")

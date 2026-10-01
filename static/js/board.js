@@ -129,11 +129,13 @@ function render(state) {
       `<span class="stars">${"★".repeat(q.skill)}${"☆".repeat(5 - q.skill)}</span>` +
       (q.category ? ` · ${esc(q.category)}` : "") +
       (state.double_active ? ` <span class="badge joker-active">2× PUNKTE</span>` : "") +
+      (state.audience_voting ? ` <span class="badge joker-active">👥 Publikum stimmt ab… (${state.audience_votes || 0})</span>` : "") +
       (state.audience_pick ? ` <span class="badge joker-active">Publikum: ${LETTERS[state.audience_pick - 1]}</span>` : "");
     document.getElementById("qtext").textContent = q.text;
     const aw = document.getElementById("answers");
     aw.innerHTML = "";
     const hidden = state.fifty_hidden || [];
+    const apct = state.audience_result || [];
     q.answers.forEach((a, i) => {
       const d = document.createElement("div");
       d.className = "answer";
@@ -146,7 +148,13 @@ function render(state) {
           else if (i + 1 === q.picked) d.classList.add("wrong");
         }
         if (state.audience_pick === i + 1) d.classList.add("audience-pick");
-        d.innerHTML = `<span class="letter">${LETTERS[i]}</span><span>${esc(a)}</span>`;
+        if (state.locked_answer === i + 1 && state.phase === "buzzed")
+          d.classList.add("locked");
+        const bar = apct.length
+          ? `<div class="abar" style="width:${apct[i]}%"></div>` : "";
+        const pct = apct.length ? `<span class="apct">${apct[i]}%</span>` : "";
+        d.innerHTML = bar +
+          `<span class="letter">${LETTERS[i]}</span><span>${esc(a)}</span>${pct}`;
       }
       aw.appendChild(d);
     });
@@ -173,13 +181,13 @@ function render(state) {
     const fiftyNow = (state.fifty_hidden || []).length > 0;
     if (fiftyNow && !prevFifty) { playSound("joker_activate"); playSound("joker_fifty"); }
     if (state.double_active && !prevDouble) { playSound("joker_activate"); playSound("joker_double"); }
-    if (state.audience_armed && !prevArmed) playSound("joker_activate");
+    if (state.audience_voting && !prevArmed) playSound("joker_activate");
     if (state.audience_pick && !prevAudience) playSound("joker_audience");
   }
   prevPhase = state.phase;
   prevFifty = (state.fifty_hidden || []).length > 0;
   prevDouble = !!state.double_active;
-  prevArmed = !!state.audience_armed;
+  prevArmed = !!state.audience_voting;
   prevAudience = !!state.audience_pick;
 }
 
