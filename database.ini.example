@@ -1,7 +1,0 @@
-[mysql]
-driver=mysql+pymysql
-hostname=localhost
-database=quiz
-username=quiz
-password=password
-port=3306

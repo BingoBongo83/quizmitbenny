@@ -6,7 +6,6 @@ After=network.target mariadb.service
 Type=simple
 User=quiz
 WorkingDirectory=/opt/quiz
-EnvironmentFile=/opt/quiz/.env
 ExecStart=/opt/quiz/env/bin/uvicorn app.main:app --host 127.0.0.1 --port 8765
 Restart=always
 RestartSec=3

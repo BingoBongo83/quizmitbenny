@@ -15,11 +15,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import websockets
 
+from app.config import BUZZER_TOKEN
+
 
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--server", default="ws://localhost:8000")
-    ap.add_argument("--token", default="changeme")
+    ap.add_argument("--token", default=BUZZER_TOKEN)
     args = ap.parse_args()
     url = f"{args.server.rstrip('/')}/ws/buzzer?token={args.token}"
 

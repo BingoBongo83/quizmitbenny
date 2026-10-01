@@ -37,19 +37,38 @@ klickt die genannte Antwort → automatische Wertung + Auflösung auf dem Board.
 ```bash
 python3 -m venv env && source env/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # QUIZ_ADMIN_PASSWORD + SECRET_KEY setzen
-cp database.ini.example database.ini   # MariaDB-Zugang eintragen
-# oder ohne MariaDB: DATABASE_URL=sqlite:///./quiz_dev.db in .env
+cp example.config.py config.py   # Zugangsdaten eintragen (gitignored!)
+```
 
-mysql -u quiz -p quiz < /dev/null  # DB/User in MariaDB anlegen:
-# CREATE DATABASE quiz; CREATE USER 'quiz'@'localhost' IDENTIFIED BY '...';
-# GRANT ALL PRIVILEGES ON quiz.* TO 'quiz'@'localhost'; FLUSH PRIVILEGES;
+`config.py` enthält alle Secrets: MariaDB-Zugang (`DB_*` oder `DATABASE_URL`),
+`SECRET_KEY`, `BUZZER_TOKEN`, `DEEPL_API_KEY`. Ohne MariaDB einfach
+`DATABASE_URL = "sqlite:///./quiz_dev.db"` setzen.
 
+MariaDB anlegen:
+```sql
+CREATE DATABASE quiz;
+CREATE USER 'quiz'@'localhost' IDENTIFIED BY '...';
+GRANT ALL PRIVILEGES ON quiz.* TO 'quiz'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+Admin-Benutzer anlegen (Credentials liegen in der Datenbank):
+
+```bash
+python -m scripts.admin create benny     # Passwort wird abgefragt
+python -m scripts.admin passwd benny     # Passwort zurücksetzen
+python -m scripts.admin list
+python -m scripts.admin delete benny
+```
+
+Starten:
+
+```bash
 uvicorn app.main:app --port 8765
 ```
 
 - Scoreboard: http://localhost:8765/board
-- Admin: http://localhost:8765/admin (Login mit `QUIZ_ADMIN_PASSWORD`)
+- Admin: http://localhost:8765/admin (Login mit DB-Benutzer)
 
 ## Buzzer
 
@@ -62,26 +81,26 @@ pip install pyserial websockets
 python -m scripts.buzzer_bridge \
     --port /dev/cu.usbserial-XXXX \
     --server wss://quiz.example.com \
-    --token <QUIZ_BUZZER_TOKEN oder Admin-Passwort>
+    --token <BUZZER_TOKEN aus config.py>
 ```
 
 Test ohne Hardware:
 
 ```bash
-python -m scripts.simulate_buzzer --server ws://localhost:8765 --token changeme
+python -m scripts.simulate_buzzer --server ws://localhost:8765
 ```
 
 ## Fragen
 
 - CRUD in den Einstellungen
 - CSV-Import (`;`-getrennt: `text;a1;a2;a3;a4;correct;skill;category`) oder JSON
-- OpenTriviaDB-Seed mit DeepL-Übersetzung: `DEEPL_API_KEY` in `.env`, dann
+- OpenTriviaDB-Seed mit DeepL-Übersetzung: `DEEPL_API_KEY` in `config.py`, dann
   `python -m scripts.seed_questions --amount 50` oder Button im UI
 
 ## Deploy (Server)
 
 1. Repo auf Server, venv + requirements installieren
-2. `.env` + `database.ini` setzen
+2. `config.py` mit echten Zugangsdaten anlegen, Admin-User via CLI erstellen
 3. `deploy/quiz.service` → `/etc/systemd/system/quiz.service`, `systemctl enable --now quiz`
 4. `deploy/nginx.example` als nginx-site (WebSocket-Header sind schon drin)
 

@@ -379,6 +379,7 @@ nav.topnav .spacer { flex: 1; }
   font-weight: 800; letter-spacing: .3em; text-transform: uppercase;
   color: var(--gold); text-shadow: 0 0 24px rgba(255,190,60,.5);
 }
-.login-box input { width: 100%; margin: 16px 0; }
+.login-box input { width: 100%; margin: 8px 0; }
+.login-box form { margin-top: 16px; }
 .login-box button { width: 100%; }
 .login-box .error { color: var(--red); margin-top: 10px; }

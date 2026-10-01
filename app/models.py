@@ -76,6 +76,14 @@ class ConfigKV(Base):
     value = Column(Text)
 
 
+class AdminUser(Base):
+    __tablename__ = "admin_users"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String(255), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+
+
 DEFAULT_SETTINGS = {
     "players_per_round": 4,
     "num_prerounds": 3,

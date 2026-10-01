@@ -1,7 +1,6 @@
 __pycache__/
 *.pyc
 env/
-.env
-database.ini
+config.py
 *.db
 .DS_Store

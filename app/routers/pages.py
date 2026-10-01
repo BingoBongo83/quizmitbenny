@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from ..auth import check_password, require_admin_page
+from ..auth import check_login, require_admin_page
 from ..config import BASE_DIR
+from ..db import get_db
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -27,11 +28,17 @@ def login_page(request: Request):
 @router.post("/login")
 async def login(request: Request):
     form = await request.form()
-    if check_password(form.get("password", "")):
+    db = next(get_db())
+    try:
+        ok = check_login(db, form.get("username", ""), form.get("password", ""))
+    finally:
+        db.close()
+    if ok:
         request.session["admin"] = True
         return RedirectResponse("/admin", status_code=303)
     return templates.TemplateResponse(
-        request, "login.html", {"error": "Falsches Passwort"}, status_code=401
+        request, "login.html", {"error": "Benutzername oder Passwort falsch"},
+        status_code=401,
     )
 
 

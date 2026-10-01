@@ -4,7 +4,8 @@
 <div class="login-box">
   <h1>Quiz</h1>
   <form method="post" action="/login">
-    <input type="password" name="password" placeholder="Moderator-Passwort" autofocus>
+    <input type="text" name="username" placeholder="Benutzername" autofocus autocomplete="username">
+    <input type="password" name="password" placeholder="Passwort" autocomplete="current-password">
     <button class="primary" type="submit">Anmelden</button>
   </form>
   {% if error %}<div class="error">{{ error }}</div>{% endif %}

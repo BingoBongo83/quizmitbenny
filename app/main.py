@@ -5,9 +5,10 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from .config import ADMIN_PASSWORD, BASE_DIR, BUZZER_TOKEN, SECRET_KEY
+from .config import BASE_DIR, BUZZER_TOKEN, SECRET_KEY
 from .db import Base, SessionLocal, engine
 from . import game
+from .models import AdminUser
 from .routers import control, pages, questions, settings
 from .ws import handle_buzzer_message, manager, may_buzz
 
@@ -31,6 +32,15 @@ def startup():
     db = SessionLocal()
     try:
         game.load_state(db)
+        if db.query(AdminUser).count() == 0:
+            logger.warning(
+                "Kein Admin-Benutzer vorhanden – anlegen mit: "
+                "python -m scripts.admin create <benutzername>"
+            )
+        if not BUZZER_TOKEN:
+            logger.warning(
+                "BUZZER_TOKEN nicht gesetzt – Bridge-Verbindungen werden abgelehnt"
+            )
     finally:
         db.close()
 
@@ -88,7 +98,7 @@ async def ws_admin(ws: WebSocket):
 @app.websocket("/ws/buzzer")
 async def ws_buzzer(ws: WebSocket):
     token = ws.query_params.get("token", "")
-    if not (token and token in (BUZZER_TOKEN, ADMIN_PASSWORD)):
+    if not (token and BUZZER_TOKEN and token == BUZZER_TOKEN):
         await ws.close(code=4401)
         return
     await _ws_loop(ws, "buzzer")
