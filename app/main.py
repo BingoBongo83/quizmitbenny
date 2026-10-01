@@ -1,7 +1,7 @@
 import json
 import logging
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -9,7 +9,7 @@ from .config import ADMIN_PASSWORD, BASE_DIR, BUZZER_TOKEN, SECRET_KEY
 from .db import Base, SessionLocal, engine
 from . import game
 from .routers import control, pages, questions, settings
-from .ws import handle_buzzer_message, manager
+from .ws import handle_buzzer_message, manager, may_buzz
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,8 +35,8 @@ def startup():
         db.close()
 
 
-async def _ws_loop(ws: WebSocket, channel: str):
-    await manager.connect(ws, channel)
+async def _ws_loop(ws: WebSocket, channel: str, privileged: bool = False):
+    await manager.connect(ws, channel, privileged)
     # send initial state
     db = SessionLocal()
     try:
@@ -53,7 +53,10 @@ async def _ws_loop(ws: WebSocket, channel: str):
                 data = json.loads(msg)
             except ValueError:
                 continue
-            if channel in ("admin", "buzzer"):
+            if channel in ("admin", "buzzer") or (
+                channel == "board" and data.get("type") == "buzzer"
+                and may_buzz(ws)
+            ):
                 await handle_buzzer_message(ws, data)
     except WebSocketDisconnect:
         pass
@@ -65,7 +68,13 @@ async def _ws_loop(ws: WebSocket, channel: str):
 
 @app.websocket("/ws/board")
 async def ws_board(ws: WebSocket):
-    await _ws_loop(ws, "board")
+    privileged = bool(ws.scope.get("session", {}).get("admin"))
+    await _ws_loop(ws, "board", privileged)
+
+
+@app.get("/api/me")
+def me(request: Request):
+    return {"admin": bool(request.session.get("admin"))}
 
 
 @app.websocket("/ws/admin")

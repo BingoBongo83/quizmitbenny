@@ -22,19 +22,20 @@ class ConnectionManager:
         self.board: set[WebSocket] = set()
         self.admin: set[WebSocket] = set()
         self.buzzer: set[WebSocket] = set()
+        # board sockets opened with an admin session may send buzzer events
+        self.board_privileged: set[WebSocket] = set()
 
-    async def connect(self, ws: WebSocket, channel: str):
+    async def connect(self, ws: WebSocket, channel: str, privileged: bool = False):
         await ws.accept()
         getattr(self, channel).add(ws)
-        if channel in ("admin", "buzzer"):
-            # first serial-capable client becomes the serial owner
-            if game.get_serial_socket() is None and channel in ("admin", "buzzer"):
-                pass  # ownership set on 'serial_ready' message
+        if channel == "board" and privileged:
+            self.board_privileged.add(ws)
 
     def disconnect(self, ws: WebSocket):
         self.board.discard(ws)
         self.admin.discard(ws)
         self.buzzer.discard(ws)
+        self.board_privileged.discard(ws)
         if game.get_serial_socket() is ws:
             game.set_serial_socket(None)
 
@@ -98,6 +99,10 @@ async def handle_buzzer_message(ws: WebSocket, data: dict):
         if ok:
             await broadcast_state_and_serial()
         return
+
+
+def may_buzz(ws: WebSocket) -> bool:
+    return ws in manager.admin or ws in manager.buzzer or ws in manager.board_privileged
 
 
 async def broadcast_state_and_serial():

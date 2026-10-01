@@ -1,20 +1,81 @@
-document.body.dataset.channel = "board";
-
 const LETTERS = ["A", "B", "C", "D"];
+const SLOT_COLORS = ["#4f7cff", "#2ee56f", "#ffbe3c", "#ff4d5e", "#b16bff"];
 
+let isAdmin = false;
+let prevScores = {};
+let prevPhase = "idle";
+let audio = null;
+
+// ---------- sound ----------
+function ensureAudio() {
+  if (!audio) {
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch { return null; }
+  }
+  if (audio.state === "suspended") audio.resume();
+  return audio;
+}
+
+function tone(freq, dur, type = "sine", gain = 0.18, when = 0) {
+  const ctx = ensureAudio();
+  if (!ctx || ctx.state !== "running") return;
+  const t = ctx.currentTime + when;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(ctx.destination);
+  o.start(t);
+  o.stop(t + dur);
+}
+
+const sounds = {
+  question() { tone(660, 0.12, "triangle"); tone(880, 0.18, "triangle", 0.12, 0.1); },
+  buzzed() { tone(1200, 0.09, "square", 0.12); tone(1600, 0.14, "square", 0.12, 0.09); },
+  correct() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, "triangle", 0.16, i * 0.09)); },
+  wrong() { tone(220, 0.4, "sawtooth", 0.14); tone(160, 0.5, "sawtooth", 0.12, 0.12); },
+};
+
+// unlock audio on first interaction; small toggle button
+const tog = document.getElementById("soundToggle");
+let soundOn = true;
+tog.onclick = () => { soundOn = !soundOn; tog.textContent = soundOn ? "Ton: an" : "Ton: aus"; if (soundOn) ensureAudio(); };
+document.addEventListener("click", ensureAudio, { once: true });
+
+// ---------- admin check for click-to-buzz ----------
+fetch("/api/me").then((r) => r.json()).then((j) => { isAdmin = !!j.admin; }).catch(() => {});
+
+function buzz(slot) {
+  if (!isAdmin) return;
+  QuizWS.send({ type: "buzzer", buzzer: slot });
+}
+
+// ---------- render ----------
 function render(state) {
   const rl = document.getElementById("roundLabel");
   rl.textContent = state.round
-    ? `${state.round.type_label} ${state.round.type === "preround" ? state.round.number : ""}`.trim()
+    ? `${state.round.type_label}${state.round.type === "preround" ? " " + state.round.number : ""}`
     : "Quiz";
 
   const wrap = document.getElementById("players");
   wrap.innerHTML = "";
   state.players.forEach((p) => {
     const d = document.createElement("div");
-    d.className = "player-card" + (p.buzzed ? " buzzed" : "") + (p.blocked ? " blocked" : "");
-    d.innerHTML = `<div class="pname"><span class="slot-dot" style="background:${slotColor(p.slot)}"></span>${esc(p.name)}</div>
-                   <div class="pscore">${p.score}</div>`;
+    d.className = "player-card"
+      + (p.buzzed ? " buzzed" : "")
+      + (p.blocked ? " blocked" : "")
+      + (isAdmin ? " clickable" : "");
+    d.style.setProperty("--slot", SLOT_COLORS[p.slot - 1] || "#888");
+    const pop = prevScores[p.slot] !== undefined && prevScores[p.slot] !== p.score;
+    d.innerHTML = `<div class="pname">${esc(p.name)}</div>
+                   <div class="pscore${pop ? " pop" : ""}">${p.score}</div>`;
+    if (isAdmin) {
+      d.title = "Klicken = Buzzer simulieren";
+      d.onclick = () => buzz(p.slot);
+    }
+    prevScores[p.slot] = p.score;
     wrap.appendChild(d);
   });
 
@@ -24,8 +85,9 @@ function render(state) {
     qbox.classList.remove("hidden");
     idle.classList.add("hidden");
     const q = state.question;
-    document.getElementById("qmeta").textContent =
-      `Schwierigkeit ${"★".repeat(q.skill)}${q.category ? " · " + q.category : ""}`;
+    document.getElementById("qmeta").innerHTML =
+      `<span class="stars">${"★".repeat(q.skill)}${"☆".repeat(5 - q.skill)}</span>` +
+      (q.category ? ` · ${esc(q.category)}` : "");
     document.getElementById("qtext").textContent = q.text;
     const aw = document.getElementById("answers");
     aw.innerHTML = "";
@@ -43,14 +105,22 @@ function render(state) {
     qbox.classList.add("hidden");
     idle.classList.remove("hidden");
     idle.textContent = state.game_started
-      ? state.round ? "Buzzer bereit …" : "Nächste Runde …"
-      : "Quiz startet gleich …";
+      ? (state.round ? "Buzzer bereit" : "Nächste Runde")
+      : "Quiz startet gleich";
   }
+
+  // sounds on phase transitions
+  if (soundOn && state.phase !== prevPhase) {
+    if (state.phase === "question") sounds.question();
+    else if (state.phase === "buzzed") sounds.buzzed();
+    else if (state.phase === "resolved") {
+      const q = state.question;
+      if (q && q.picked === q.correct) sounds.correct(); else sounds.wrong();
+    }
+  }
+  prevPhase = state.phase;
 }
 
-function slotColor(slot) {
-  return ["#4f7cff", "#2ecc71", "#ffb02e", "#e74c3c", "#b16bff"][slot - 1] || "#888";
-}
 function esc(s) {
   const d = document.createElement("div");
   d.textContent = s ?? "";
