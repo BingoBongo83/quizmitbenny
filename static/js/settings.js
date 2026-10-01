@@ -12,11 +12,9 @@ const api = async (url, method = "GET", body) => {
   return r.json().catch(() => ({}));
 };
 
-const esc = (s) => {
-  const d = document.createElement("div");
-  d.textContent = s ?? "";
-  return d.innerHTML;
-};
+const esc = (s) =>
+  String(s ?? "").replace(/[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const SKILL_SETS = [
   ["skills_preround", "Vorrunde"],
@@ -45,21 +43,18 @@ function neededPlayers() {
 async function loadPlayers() {
   players = await api("/api/settings/players");
   const need = neededPlayers();
-  const active = players.filter((p) => p.active);
+  const actives = players.filter((p) => p.active);
+  const inactives = players.filter((p) => !p.active);
   const el = document.getElementById("playerList");
   const info = need
     ? `<div class="muted" style="margin-bottom:8px">Benötigt: <b>${need}</b> Spieler
        (${settings.players_per_round}/Runde × ${settings.num_prerounds} Vorrunden) –
-       aktiv: <b>${active.length}</b>${active.length > need
-         ? ` <span style="color:var(--accent2)">(${active.length - need} auf Ersatzbank)</span>` : ""}
-       ${active.length < need
-         ? ` <span style="color:var(--red)">(${need - active.length} fehlen)</span>` : ""}</div>`
+       aktiv: <b>${actives.length}</b>${actives.length > need
+         ? ` <span style="color:var(--accent2)">(${actives.length - need} auf Ersatzbank)</span>` : ""}
+       ${actives.length < need
+         ? ` <span style="color:var(--red)">(${need - actives.length} fehlen)</span>` : ""}</div>`
     : "";
-  let inGame = 0;
-  el.innerHTML = info + players.map((p) => {
-    const seated = p.active && ++inGame <= need;
-    const bench = p.active && !seated;
-    return `
+  const row = (p, bench) => `
     <div class="player-row ${bench ? "bench" : ""} ${!p.active ? "inactive" : ""}">
       <label><input type="checkbox" data-pid="${p.id}" ${p.active ? "checked" : ""} class="pactive"> aktiv</label>
       <input type="text" value="${esc(p.name)}" data-pid="${p.id}" class="pname" style="flex:1">
@@ -67,7 +62,18 @@ async function loadPlayers() {
       <button data-pid="${p.id}" class="psave">Speichern</button>
       <button data-pid="${p.id}" class="pdel danger">×</button>
     </div>`;
-  }).join("");
+  el.innerHTML = info + actives.map((p, i) => row(p, i >= need)).join("") +
+    (inactives.length
+      ? `<div class="player-row"><button id="toggleInact" class="tab-btn" style="padding:4px 14px;font-size:.8em">
+           ▸ Inaktive Spieler (${inactives.length})</button></div>
+         <div id="inactList" class="hidden">${inactives.map((p) => row(p, false)).join("")}</div>`
+      : "");
+  const tg = document.getElementById("toggleInact");
+  if (tg) tg.onclick = () => {
+    const l = document.getElementById("inactList");
+    const show = l.classList.toggle("hidden");
+    tg.textContent = `${show ? "▸" : "▾"} Inaktive Spieler (${inactives.length})`;
+  };
   el.querySelectorAll(".psave").forEach((b) => (b.onclick = async () => {
     const pid = b.dataset.pid;
     const name = el.querySelector(`.pname[data-pid="${pid}"]`).value;
@@ -301,25 +307,69 @@ async function loadRounds() {
 }
 
 // ---------------- questions ----------------
+const Q_PAGE_SIZE = 25;
+let qPage = 0;
+let qTotal = 0;
+let nqEditId = null;
+
 async function loadQuestions() {
   const params = new URLSearchParams();
   const q = document.getElementById("qSearch").value;
   const skill = document.getElementById("qSkillFilter").value;
   if (q) params.set("q", q);
   if (skill) params.set("skill", skill);
-  const qs = await api(`/api/questions?${params}`);
+  params.set("limit", Q_PAGE_SIZE);
+  params.set("offset", qPage * Q_PAGE_SIZE);
+  const res = await api(`/api/questions?${params}`);
+  let qs = res.items;
+  qTotal = res.total;
+  if (!qs.length && qPage > 0) { qPage--; return loadQuestions(); }
+  window._qs = qs;
   document.getElementById("questionTable").innerHTML =
     `<tr><th>Frage</th><th>Skill</th><th>Kat.</th><th>✓</th><th></th></tr>` +
-    qs.map((x) => `<tr>
+    (qs.map((x) => `<tr>
       <td>${esc(x.text)}</td><td>${x.skill}</td><td>${esc(x.category)}</td>
       <td>${"ABCD"[x.correct - 1]}</td>
-      <td><button class="qdel danger" data-qid="${x.id}">×</button></td></tr>`).join("");
+      <td style="white-space:nowrap">
+        <button class="qedit" data-qid="${x.id}">edit</button>
+        <button class="qdel danger" data-qid="${x.id}">×</button></td></tr>`).join("")
+     || '<tr><td class="muted">Keine Fragen</td></tr>');
   document.querySelectorAll(".qdel").forEach((b) => (b.onclick = async () => {
     if (confirm("Frage löschen?")) { await api(`/api/questions/${b.dataset.qid}`, "DELETE"); loadQuestions(); }
   }));
+  document.querySelectorAll(".qedit").forEach((b) => (b.onclick = () => {
+    const x = window._qs.find((v) => v.id === +b.dataset.qid);
+    if (!x) return;
+    nq_text.value = x.text;
+    // correct answer goes into field 1 (matches the "(richtig)" label)
+    const correct = x.answers[x.correct - 1];
+    const wrong = x.answers.filter((_, i) => i !== x.correct - 1);
+    [nq_a1, nq_a2, nq_a3, nq_a4].forEach((el, i) =>
+      (el.value = i === 0 ? correct : wrong[i - 1] ?? ""));
+    nq_skill.value = x.skill;
+    nqEditId = x.id;
+    document.getElementById("nq_add").textContent = "Speichern";
+    document.getElementById("nq_cancel").classList.remove("hidden");
+    nq_text.focus();
+  }));
+  const pages = Math.max(1, Math.ceil(qTotal / Q_PAGE_SIZE));
+  document.getElementById("qPager").innerHTML = qTotal > Q_PAGE_SIZE
+    ? `<button id="qPrev" ${qPage === 0 ? "disabled" : ""}>◀</button>
+       <span class="muted">Seite ${qPage + 1} / ${pages} (${qTotal} Fragen)</span>
+       <button id="qNext" ${qPage >= pages - 1 ? "disabled" : ""}>▶</button>`
+    : `<span class="muted">${qTotal} Fragen</span>`;
+  const prev = document.getElementById("qPrev"), next = document.getElementById("qNext");
+  if (prev) prev.onclick = () => { qPage--; loadQuestions(); };
+  if (next) next.onclick = () => { qPage++; loadQuestions(); };
 }
 
-document.getElementById("qSearchBtn").onclick = loadQuestions;
+document.getElementById("qSearchBtn").onclick = () => { qPage = 0; loadQuestions(); };
+document.getElementById("nq_cancel").onclick = () => {
+  nqEditId = null;
+  document.getElementById("nq_add").textContent = "+";
+  document.getElementById("nq_cancel").classList.add("hidden");
+  ["nq_text", "nq_a1", "nq_a2", "nq_a3", "nq_a4"].forEach((id) => (document.getElementById(id).value = ""));
+};
 document.getElementById("nq_add").onclick = async () => {
   const body = {
     text: nq_text.value, answer1: nq_a1.value, answer2: nq_a2.value,
@@ -327,8 +377,13 @@ document.getElementById("nq_add").onclick = async () => {
     skill: +nq_skill.value,
   };
   if (!body.text || !body.answer1) return alert("Frage + Antworten ausfüllen");
-  await api("/api/questions", "POST", body);
-  ["nq_text", "nq_a1", "nq_a2", "nq_a3", "nq_a4"].forEach((id) => (document.getElementById(id).value = ""));
+  if (nqEditId) {
+    await api(`/api/questions/${nqEditId}`, "PUT", body);
+    document.getElementById("nq_cancel").onclick();
+  } else {
+    await api("/api/questions", "POST", body);
+    ["nq_text", "nq_a1", "nq_a2", "nq_a3", "nq_a4"].forEach((id) => (document.getElementById(id).value = ""));
+  }
   loadQuestions();
 };
 

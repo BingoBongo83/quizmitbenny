@@ -32,7 +32,8 @@ def _validate(body: QuestionBody):
 
 @router.get("")
 def list_questions(q: str | None = None, skill: int | None = None,
-                   category: str | None = None, limit: int = 500):
+                   category: str | None = None, limit: int = 50,
+                   offset: int = 0):
     db = next(get_db())
     try:
         query = db.query(Question)
@@ -42,8 +43,11 @@ def list_questions(q: str | None = None, skill: int | None = None,
             query = query.filter(Question.skill == skill)
         if category:
             query = query.filter(Question.category == category)
-        return [x.to_dict(reveal=True) | {"correct": x.correct}
-                for x in query.order_by(Question.id.desc()).limit(limit).all()]
+        total = query.count()
+        items = (query.order_by(Question.id.desc())
+                 .offset(offset).limit(limit).all())
+        return {"total": total, "items": [
+            x.to_dict(reveal=True) | {"correct": x.correct} for x in items]}
     finally:
         db.close()
 

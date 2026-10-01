@@ -40,7 +40,7 @@ async def create_game(body: CreateGameBody, request: Request):
                 p.id
                 for p in db.query(Player)
                 .filter(Player.active)
-                .order_by(Player.name)
+                .order_by(Player.id)
                 .limit(need)
             ]
         if not ids:

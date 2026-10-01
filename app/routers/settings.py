@@ -47,7 +47,7 @@ def list_players():
     try:
         return [
             {"id": p.id, "name": p.name, "active": p.active}
-            for p in db.query(Player).order_by(Player.name).all()
+            for p in db.query(Player).order_by(Player.id).all()
         ]
     finally:
         db.close()
