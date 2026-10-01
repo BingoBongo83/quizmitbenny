@@ -98,6 +98,7 @@ async function loadSettings() {
   document.getElementById("s_pws").value = settings.points_wrong_self;
   document.getElementById("s_pwo").value = settings.points_wrong_others;
   document.getElementById("s_block").checked = settings.block_on_wrong;
+  document.getElementById("s_sound").value = settings.sound_target || "board";
 
   const sk = document.getElementById("skillSets");
   sk.innerHTML = SKILL_SETS.map(([key, label]) => `
@@ -116,6 +117,7 @@ document.getElementById("saveSettings").onclick = async () => {
     points_wrong_self: +document.getElementById("s_pws").value,
     points_wrong_others: +document.getElementById("s_pwo").value,
     block_on_wrong: document.getElementById("s_block").checked,
+    sound_target: document.getElementById("s_sound").value,
   };
   SKILL_SETS.forEach(([key]) => {
     body[key] = [...document.querySelectorAll(`input[data-set="${key}"]:checked`)]

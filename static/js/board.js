@@ -109,8 +109,9 @@ function render(state) {
       : "Quiz startet gleich";
   }
 
-  // sounds on phase transitions
-  if (soundOn && state.phase !== prevPhase) {
+  // sounds on phase transitions (only if this host is the sound target)
+  const playHere = (state.sound_target || "board") !== "admin";
+  if (soundOn && playHere && state.phase !== prevPhase) {
     if (state.phase === "question") sounds.question();
     else if (state.phase === "buzzed") sounds.buzzed();
     else if (state.phase === "resolved") {

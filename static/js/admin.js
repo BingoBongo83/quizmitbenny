@@ -1,5 +1,40 @@
 const LETTERS = ["A", "B", "C", "D"];
 let lastState = null;
+let prevPhase = "idle";
+let audio = null;
+
+// ---------- sound (played here only if setting sound_target = admin|both) ----------
+function ensureAudio() {
+  if (!audio) {
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch { return null; }
+  }
+  if (audio.state === "suspended") audio.resume();
+  return audio;
+}
+
+function tone(freq, dur, type = "sine", gain = 0.18, when = 0) {
+  const ctx = ensureAudio();
+  if (!ctx || ctx.state !== "running") return;
+  const t = ctx.currentTime + when;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(ctx.destination);
+  o.start(t);
+  o.stop(t + dur);
+}
+
+const sounds = {
+  question() { tone(660, 0.12, "triangle"); tone(880, 0.18, "triangle", 0.12, 0.1); },
+  buzzed() { tone(1200, 0.09, "square", 0.12); tone(1600, 0.14, "square", 0.12, 0.09); },
+  correct() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, "triangle", 0.16, i * 0.09)); },
+  wrong() { tone(220, 0.4, "sawtooth", 0.14); tone(160, 0.5, "sawtooth", 0.12, 0.12); },
+};
+document.addEventListener("click", ensureAudio, { once: true });
 
 async function post(url, body) {
   const r = await fetch(url, {
@@ -112,6 +147,18 @@ function render(st) {
   document.getElementById("btnSkip").disabled = !(st.question);
   document.getElementById("btnHide").disabled = !(st.question);
   document.getElementById("btnFinish").disabled = !(st.round && st.round.status === "active");
+
+  // sounds on phase transitions (only if this host is the sound target)
+  const playHere = (st.sound_target || "board") !== "board";
+  if (playHere && st.phase !== prevPhase) {
+    if (st.phase === "question") sounds.question();
+    else if (st.phase === "buzzed") sounds.buzzed();
+    else if (st.phase === "resolved") {
+      const q = st.question;
+      if (q && q.picked === q.correct) sounds.correct(); else sounds.wrong();
+    }
+  }
+  prevPhase = st.phase;
 }
 
 document.getElementById("btnShow").onclick = () => post("/api/game/question/show");

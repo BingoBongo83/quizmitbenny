@@ -658,6 +658,7 @@ def board_state(db: Session) -> dict:
         "question": question,
         "buzzed_slot": _state["buzzed_slot"],
         "game_started": _state["game_started"],
+        "sound_target": get_setting(db, "sound_target", "board"),
     }
 
 

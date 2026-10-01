@@ -134,6 +134,7 @@ DEFAULT_SETTINGS = {
     "points_wrong_self": 0,
     "points_wrong_others": 2,
     "block_on_wrong": True,
+    "sound_target": "board",  # board | admin | both
     "skills_preround": [1, 2, 3],
     "skills_playoff": [3, 4],
     "skills_semifinal": [3, 4, 5],
