@@ -2,11 +2,12 @@ import json
 import logging
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import inspect, text
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from .config import BASE_DIR, BUZZER_TOKEN, SECRET_KEY
+from .config import BASE_DIR, BUZZER_TOKEN, SECRET_KEY, SITE_PASSWORD
 from .db import Base, SessionLocal, engine
 from . import game
 from .models import AdminUser
@@ -17,6 +18,30 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Quiz")
+
+_SITE_OPEN = ("/audience", "/static", "/unlock", "/login")
+
+
+@app.middleware("http")
+async def site_gate(request: Request, call_next):
+    """Whole-site password gate; disabled when SITE_PASSWORD is empty.
+
+    /audience (and its websocket, handled below) stays public so viewers can
+    vote without the site password. An admin session also unlocks everything.
+    """
+    if (
+        not SITE_PASSWORD
+        or request.session.get("admin")
+        or request.session.get("site_ok")
+        or request.url.path.startswith(_SITE_OPEN)
+    ):
+        return await call_next(request)
+    if request.method in ("GET", "HEAD"):
+        return RedirectResponse("/unlock", status_code=303)
+    return JSONResponse({"detail": "Passwort nötig"}, status_code=401)
+
+
+# must wrap site_gate so request.session is populated before the gate runs
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
 app.include_router(pages.router)
@@ -111,7 +136,11 @@ async def _ws_loop(ws: WebSocket, channel: str, privileged: bool = False):
 
 @app.websocket("/ws/board")
 async def ws_board(ws: WebSocket):
-    privileged = bool(ws.scope.get("session", {}).get("admin"))
+    session = ws.scope.get("session", {})
+    if SITE_PASSWORD and not (session.get("admin") or session.get("site_ok")):
+        await ws.close(code=4401)
+        return
+    privileged = bool(session.get("admin"))
     await _ws_loop(ws, "board", privileged)
 
 

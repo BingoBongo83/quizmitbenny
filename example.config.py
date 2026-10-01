@@ -16,6 +16,10 @@ DB_PASSWORD = "password"
 # Session cookie secret – generate: openssl rand -hex 32
 SECRET_KEY = "changeme"
 
+# Optional: site-wide password – protects every page except /audience.
+# Guests enter it at /unlock; empty = no protection.
+SITE_PASSWORD = ""
+
 # Token the local buzzer bridge (scripts/buzzer_bridge.py) uses to authenticate.
 BUZZER_TOKEN = "buzzer-token"
 

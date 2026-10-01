@@ -44,6 +44,10 @@ cp example.config.py config.py   # Zugangsdaten eintragen (gitignored!)
 `SECRET_KEY`, `BUZZER_TOKEN`, `DEEPL_API_KEY`. Ohne MariaDB einfach
 `DATABASE_URL = "sqlite:///./quiz_dev.db"` setzen.
 
+Optionaler Schutz: `SITE_PASSWORD` sperrt die ganze Seite hinter einem Passwort
+(`/unlock`) — nur `/audience` bleibt öffentlich. Admin-Login gilt automatisch
+als Freischaltung.
+
 MariaDB anlegen:
 ```sql
 CREATE DATABASE quiz;
@@ -121,6 +125,7 @@ sudo -u quizmitbenny tee /opt/quizmitbenny/config.py > /dev/null <<EOF
 DATABASE_URL = "mysql+pymysql://quizmitbenny:$DB_PASS@localhost:3306/quizmitbenny?charset=utf8mb4"
 SECRET_KEY = "$(openssl rand -hex 32)"
 BUZZER_TOKEN = "$(openssl rand -hex 16)"
+SITE_PASSWORD = "hier-gaeste-passwort"
 DEEPL_API_KEY = ""
 EOF
 
