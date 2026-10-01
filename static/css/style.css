@@ -389,12 +389,12 @@ label.field { display: block; margin: 10px 0 4px; color: var(--muted); font-size
 
 /* jokers */
 .jchip {
-  display: inline-block; min-width: 1.6em; text-align: center;
+  display: inline-block; min-width: 1.7em; text-align: center;
   border: 1px solid rgba(255,210,60,.5); color: var(--gold);
-  border-radius: 5px; padding: 1px 5px; margin-right: 4px;
-  font-size: .78em; font-weight: 700;
+  border-radius: 5px; padding: 2px 5px; margin-right: 4px;
+  font-size: .92em; font-weight: 700;
 }
-.jchip.used { opacity: .3; text-decoration: line-through; border-color: rgba(120,135,200,.4); color: var(--muted); }
+.jchip.used { opacity: .3; filter: grayscale(1); border-color: rgba(120,135,200,.4); }
 .pjokers { margin-top: 6px; }
 .joker-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .joker-bar:empty { margin: 0; }

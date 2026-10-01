@@ -4,6 +4,9 @@ const DEFAULT_SEAT_COLORS = ["#2e6bff", "#ffd23c", "#ff8c1a", "#ff5ec4", "#2ee56
 let isAdmin = false;
 let prevScores = {};
 let prevPhase = "idle";
+let prevFifty = false;
+let prevDouble = false;
+let prevAudience = false;
 let audio = null;
 
 // ---------- sound ----------
@@ -36,6 +39,9 @@ const sounds = {
   buzzed() { tone(1200, 0.09, "square", 0.12); tone(1600, 0.14, "square", 0.12, 0.09); },
   correct() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, "triangle", 0.16, i * 0.09)); },
   wrong() { tone(220, 0.4, "sawtooth", 0.14); tone(160, 0.5, "sawtooth", 0.12, 0.12); },
+  joker_fifty() { tone(920, 0.07, "square", 0.14); tone(620, 0.1, "square", 0.14, 0.09); },
+  joker_double() { [660, 880, 1320].forEach((f, i) => tone(f, 0.14, "triangle", 0.14, i * 0.08)); },
+  joker_audience() { [392, 494, 587].forEach((f, i) => tone(f, 0.38, "sine", 0.1, i * 0.07)); },
 };
 
 // unlock audio on first interaction; small toggle button
@@ -73,9 +79,11 @@ function render(state) {
     d.style.setProperty("--slot", hex);
     d.style.setProperty("--slot-glow", hex + "66");  // 40% alpha
     const pop = prevScores[p.slot] !== undefined && prevScores[p.slot] !== p.score;
-    const JLABEL = { fifty: "50", double: "2×", audience: "P" };
+    const JICON = { fifty: "✂️", double: "⚡", audience: "👥" };
+    const JTIP = { fifty: "50:50", double: "Doppelte Punkte", audience: "Publikumsjoker" };
     const jk = (state.jokers_enabled || [])
-      .map((k) => `<span class="jchip ${(p.jokers || {})[k] ? "used" : ""}">${JLABEL[k]}</span>`)
+      .map((k) => `<span class="jchip ${(p.jokers || {})[k] ? "used" : ""}"
+        title="${JTIP[k]}">${JICON[k]}</span>`)
       .join("");
     d.innerHTML = `<div class="pname">${esc(p.name)}</div>
                    <div class="pscore${pop ? " pop" : ""}">${p.score}</div>
@@ -130,15 +138,25 @@ function render(state) {
 
   // sounds on phase transitions (only if this host is the sound target)
   const playHere = (state.sound_target || "board") !== "admin";
-  if (soundOn && playHere && state.phase !== prevPhase) {
-    if (state.phase === "question") sounds.question();
-    else if (state.phase === "buzzed") sounds.buzzed();
-    else if (state.phase === "resolved") {
-      const q = state.question;
-      if (q && q.picked === q.correct) sounds.correct(); else sounds.wrong();
+  if (soundOn && playHere) {
+    if (state.phase !== prevPhase) {
+      if (state.phase === "question") sounds.question();
+      else if (state.phase === "buzzed") sounds.buzzed();
+      else if (state.phase === "resolved") {
+        const q = state.question;
+        if (q && q.picked === q.correct) sounds.correct(); else sounds.wrong();
+      }
     }
+    // joker activation effects (not phase changes -> watch field transitions)
+    const fiftyNow = (state.fifty_hidden || []).length > 0;
+    if (fiftyNow && !prevFifty) sounds.joker_fifty();
+    if (state.double_active && !prevDouble) sounds.joker_double();
+    if (state.audience_pick && !prevAudience) sounds.joker_audience();
   }
   prevPhase = state.phase;
+  prevFifty = (state.fifty_hidden || []).length > 0;
+  prevDouble = !!state.double_active;
+  prevAudience = !!state.audience_pick;
 }
 
 function esc(s) {

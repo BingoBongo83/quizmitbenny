@@ -33,7 +33,14 @@ const sounds = {
   buzzed() { tone(1200, 0.09, "square", 0.12); tone(1600, 0.14, "square", 0.12, 0.09); },
   correct() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, "triangle", 0.16, i * 0.09)); },
   wrong() { tone(220, 0.4, "sawtooth", 0.14); tone(160, 0.5, "sawtooth", 0.12, 0.12); },
+  joker_fifty() { tone(920, 0.07, "square", 0.14); tone(620, 0.1, "square", 0.14, 0.09); },
+  joker_double() { [660, 880, 1320].forEach((f, i) => tone(f, 0.14, "triangle", 0.14, i * 0.08)); },
+  joker_audience() { [392, 494, 587].forEach((f, i) => tone(f, 0.38, "sine", 0.1, i * 0.07)); },
 };
+
+let prevFifty = false;
+let prevDouble = false;
+let prevAudience = false;
 document.addEventListener("click", ensureAudio, { once: true });
 
 async function post(url, body) {
@@ -70,9 +77,11 @@ function render(st) {
   const tbl = document.getElementById("curPlayers");
   const seatColors = (st.seat_colors && st.seat_colors.length) ? st.seat_colors : [];
   const jkEnabled = st.jokers_enabled || [];
-  const JLABEL = { fifty: "50", double: "2×", audience: "P" };
+  const JICON = { fifty: "✂️", double: "⚡", audience: "👥" };
+  const JTIP = { fifty: "50:50", double: "Doppelte Punkte", audience: "Publikumsjoker" };
   const jkChips = (p) => jkEnabled.map((k) =>
-    `<span class="jchip ${(p.jokers || {})[k] ? "used" : ""}">${JLABEL[k]}</span>`).join("");
+    `<span class="jchip ${(p.jokers || {})[k] ? "used" : ""}"
+      title="${JTIP[k]}">${JICON[k]}</span>`).join("");
   tbl.innerHTML = "<tr><th>Slot</th><th>Spieler</th><th>Joker</th><th>Punkte</th><th></th></tr>" +
     st.players.map((p) => {
       const hex = seatColors[p.slot - 1] || "#888";
@@ -143,7 +152,7 @@ function render(st) {
         none.textContent = " keine übrig";
         jb.appendChild(none);
       }
-      const BTN_LABEL = { fifty: "50:50", double: "2× Punkte", audience: "Publikum" };
+      const BTN_LABEL = { fifty: "✂️ 50:50", double: "⚡ 2× Punkte", audience: "👥 Publikum" };
       avail.forEach((k) => {
         const b = document.createElement("button");
         b.className = "joker-btn";
@@ -219,15 +228,24 @@ function render(st) {
 
   // sounds on phase transitions (only if this host is the sound target)
   const playHere = (st.sound_target || "board") !== "board";
-  if (playHere && st.phase !== prevPhase) {
-    if (st.phase === "question") sounds.question();
-    else if (st.phase === "buzzed") sounds.buzzed();
-    else if (st.phase === "resolved") {
-      const q = st.question;
-      if (q && q.picked === q.correct) sounds.correct(); else sounds.wrong();
+  if (playHere) {
+    if (st.phase !== prevPhase) {
+      if (st.phase === "question") sounds.question();
+      else if (st.phase === "buzzed") sounds.buzzed();
+      else if (st.phase === "resolved") {
+        const q = st.question;
+        if (q && q.picked === q.correct) sounds.correct(); else sounds.wrong();
+      }
     }
+    const fiftyNow = (st.fifty_hidden || []).length > 0;
+    if (fiftyNow && !prevFifty) sounds.joker_fifty();
+    if (st.double_active && !prevDouble) sounds.joker_double();
+    if (st.audience_pick && !prevAudience) sounds.joker_audience();
   }
   prevPhase = st.phase;
+  prevFifty = (st.fifty_hidden || []).length > 0;
+  prevDouble = !!st.double_active;
+  prevAudience = !!st.audience_pick;
 }
 
 document.getElementById("btnShow").onclick = () => post("/api/game/question/show");
