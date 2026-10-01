@@ -44,6 +44,27 @@ const sounds = {
   joker_audience() { [392, 494, 587].forEach((f, i) => tone(f, 0.38, "sine", 0.1, i * 0.07)); },
 };
 
+// real sound files in /static/sounds/, synthesized jingles as fallback
+const SOUND_FILES = {
+  question: "question", buzzed: "buzzer", correct: "correct",
+  wrong: "wrong", joker_fifty: "joker", joker_double: "joker",
+  joker_audience: "joker",
+};
+const audioCache = {};
+function playSound(name) {
+  const file = SOUND_FILES[name];
+  if (file) {
+    try {
+      const a = audioCache[file] ||= new Audio(`/static/sounds/${file}.mp3`);
+      a.currentTime = 0;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => { if (sounds[name]) sounds[name](); });
+      return;
+    } catch { /* fall through to synth */ }
+  }
+  if (sounds[name]) sounds[name]();
+}
+
 // unlock audio on first interaction; small toggle button
 const tog = document.getElementById("soundToggle");
 let soundOn = true;
@@ -140,18 +161,18 @@ function render(state) {
   const playHere = (state.sound_target || "board") !== "admin";
   if (soundOn && playHere) {
     if (state.phase !== prevPhase) {
-      if (state.phase === "question") sounds.question();
-      else if (state.phase === "buzzed") sounds.buzzed();
+      if (state.phase === "question") playSound("question");
+      else if (state.phase === "buzzed") playSound("buzzed");
       else if (state.phase === "resolved") {
         const q = state.question;
-        if (q && q.picked === q.correct) sounds.correct(); else sounds.wrong();
+        playSound(q && q.picked === q.correct ? "correct" : "wrong");
       }
     }
     // joker activation effects (not phase changes -> watch field transitions)
     const fiftyNow = (state.fifty_hidden || []).length > 0;
-    if (fiftyNow && !prevFifty) sounds.joker_fifty();
-    if (state.double_active && !prevDouble) sounds.joker_double();
-    if (state.audience_pick && !prevAudience) sounds.joker_audience();
+    if (fiftyNow && !prevFifty) playSound("joker_fifty");
+    if (state.double_active && !prevDouble) playSound("joker_double");
+    if (state.audience_pick && !prevAudience) playSound("joker_audience");
   }
   prevPhase = state.phase;
   prevFifty = (state.fifty_hidden || []).length > 0;

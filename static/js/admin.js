@@ -38,6 +38,27 @@ const sounds = {
   joker_audience() { [392, 494, 587].forEach((f, i) => tone(f, 0.38, "sine", 0.1, i * 0.07)); },
 };
 
+// real sound files in /static/sounds/, synthesized jingles as fallback
+const SOUND_FILES = {
+  question: "question", buzzed: "buzzer", correct: "correct",
+  wrong: "wrong", joker_fifty: "joker", joker_double: "joker",
+  joker_audience: "joker",
+};
+const audioCache = {};
+function playSound(name) {
+  const file = SOUND_FILES[name];
+  if (file) {
+    try {
+      const a = audioCache[file] ||= new Audio(`/static/sounds/${file}.mp3`);
+      a.currentTime = 0;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => { if (sounds[name]) sounds[name](); });
+      return;
+    } catch { /* fall through to synth */ }
+  }
+  if (sounds[name]) sounds[name]();
+}
+
 let prevFifty = false;
 let prevDouble = false;
 let prevAudience = false;
@@ -230,17 +251,17 @@ function render(st) {
   const playHere = (st.sound_target || "board") !== "board";
   if (playHere) {
     if (st.phase !== prevPhase) {
-      if (st.phase === "question") sounds.question();
-      else if (st.phase === "buzzed") sounds.buzzed();
+      if (st.phase === "question") playSound("question");
+      else if (st.phase === "buzzed") playSound("buzzed");
       else if (st.phase === "resolved") {
         const q = st.question;
-        if (q && q.picked === q.correct) sounds.correct(); else sounds.wrong();
+        playSound(q && q.picked === q.correct ? "correct" : "wrong");
       }
     }
     const fiftyNow = (st.fifty_hidden || []).length > 0;
-    if (fiftyNow && !prevFifty) sounds.joker_fifty();
-    if (st.double_active && !prevDouble) sounds.joker_double();
-    if (st.audience_pick && !prevAudience) sounds.joker_audience();
+    if (fiftyNow && !prevFifty) playSound("joker_fifty");
+    if (st.double_active && !prevDouble) playSound("joker_double");
+    if (st.audience_pick && !prevAudience) playSound("joker_audience");
   }
   prevPhase = st.phase;
   prevFifty = (st.fifty_hidden || []).length > 0;
