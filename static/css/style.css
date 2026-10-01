@@ -355,6 +355,8 @@ label.field { display: block; margin: 10px 0 4px; color: var(--muted); font-size
 .skill-cb { display: inline-flex; gap: 6px; align-items: center; margin-right: 14px; }
 .player-row { display: flex; gap: 10px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
 .player-row input[type=text] { flex: 1; min-width: 140px; }
+.player-row.bench { opacity: .55; }
+.player-row.inactive { opacity: .4; }
 table.list { width: 100%; border-collapse: collapse; }
 table.list td, table.list th { padding: 6px 8px; border-bottom: 1px solid rgba(120,135,200,.15); text-align: left; font-size: .95em; }
 table.list th { color: var(--muted); font-size: .78em; text-transform: uppercase; letter-spacing: .1em; }

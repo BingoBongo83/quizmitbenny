@@ -29,16 +29,36 @@ let players = [];
 let settings = {};
 
 // ---------------- players ----------------
+function neededPlayers() {
+  return (settings.players_per_round || 0) * (settings.num_prerounds || 0);
+}
+
 async function loadPlayers() {
   players = await api("/api/settings/players");
+  const need = neededPlayers();
+  const active = players.filter((p) => p.active);
   const el = document.getElementById("playerList");
-  el.innerHTML = players.map((p) => `
-    <div class="player-row">
+  const info = need
+    ? `<div class="muted" style="margin-bottom:8px">Benötigt: <b>${need}</b> Spieler
+       (${settings.players_per_round}/Runde × ${settings.num_prerounds} Vorrunden) –
+       aktiv: <b>${active.length}</b>${active.length > need
+         ? ` <span style="color:var(--accent2)">(${active.length - need} auf Ersatzbank)</span>` : ""}
+       ${active.length < need
+         ? ` <span style="color:var(--red)">(${need - active.length} fehlen)</span>` : ""}</div>`
+    : "";
+  let inGame = 0;
+  el.innerHTML = info + players.map((p) => {
+    const seated = p.active && ++inGame <= need;
+    const bench = p.active && !seated;
+    return `
+    <div class="player-row ${bench ? "bench" : ""} ${!p.active ? "inactive" : ""}">
       <label><input type="checkbox" data-pid="${p.id}" ${p.active ? "checked" : ""} class="pactive"> aktiv</label>
       <input type="text" value="${esc(p.name)}" data-pid="${p.id}" class="pname" style="flex:1">
+      ${bench ? '<span class="badge">Ersatz</span>' : ""}
       <button data-pid="${p.id}" class="psave">Speichern</button>
       <button data-pid="${p.id}" class="pdel danger">×</button>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   el.querySelectorAll(".psave").forEach((b) => (b.onclick = async () => {
     const pid = b.dataset.pid;
     const name = el.querySelector(`.pname[data-pid="${pid}"]`).value;
@@ -56,7 +76,7 @@ async function loadPlayers() {
     const pid = c.dataset.pid;
     const name = el.querySelector(`.pname[data-pid="${pid}"]`).value;
     await api(`/api/settings/players/${pid}`, "PUT", { name, active: c.checked });
-    loadPreview();
+    loadPlayers();
   }));
   loadPreview();
 }
@@ -109,7 +129,8 @@ document.getElementById("saveSettings").onclick = async () => {
 
 // ---------------- bracket preview ----------------
 async function loadPreview() {
-  const n = players.filter((p) => p.active).length;
+  const active = players.filter((p) => p.active).length;
+  const n = Math.min(active, neededPlayers() || active);
   const el = document.getElementById("preview");
   if (!n) { el.textContent = "Keine aktiven Spieler"; return; }
   const p = await api(`/api/settings/preview?num_players=${n}`);
@@ -124,9 +145,9 @@ async function loadPreview() {
 document.getElementById("createGameShuffle").onclick = () => createGame(true);
 document.getElementById("createGameOrder").onclick = () => createGame(false);
 async function createGame(shuffle) {
-  const ids = players.filter((p) => p.active).map((p) => p.id);
-  if (!confirm(`Spiel mit ${ids.length} Spielern erstellen? Bisherige Runden werden gelöscht.`)) return;
-  await api("/api/game/create", "POST", { player_ids: ids, shuffle });
+  const n = Math.min(players.filter((p) => p.active).length, neededPlayers());
+  if (!confirm(`Spiel mit den ersten ${n} aktiven Spielern erstellen? Bisherige Runden werden gelöscht.`)) return;
+  await api("/api/game/create", "POST", { shuffle });
   loadRounds();
 }
 document.getElementById("resetGame").onclick = async () => {
