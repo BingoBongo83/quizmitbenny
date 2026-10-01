@@ -45,8 +45,50 @@ class Question(Base):
         return d
 
 
+class Category(Base):
+    __tablename__ = "categories"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), unique=True, nullable=False)
+
+
+class CustomQuestion(Base):
+    """User-authored questions bound to a Category. Only played when the
+    round's question_pool points at that category – never in the standard pool."""
+
+    __tablename__ = "custom_questions"
+
+    id = Column(Integer, primary_key=True)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
+    text = Column(Text, nullable=False)
+    answer1 = Column(Text, nullable=False)
+    answer2 = Column(Text, nullable=False)
+    answer3 = Column(Text, nullable=False)
+    answer4 = Column(Text, nullable=False)
+    correct = Column(Integer, nullable=False)  # 1-4
+    skill = Column(Integer, nullable=False, default=1)  # 1-5
+    used = Column(Boolean, default=False)
+    used_round_id = Column(Integer, nullable=True)
+
+    def answers(self):
+        return [self.answer1, self.answer2, self.answer3, self.answer4]
+
+    def to_dict(self, reveal=False):
+        d = {
+            "id": self.id,
+            "text": self.text,
+            "answers": self.answers(),
+            "skill": self.skill,
+            "category_id": self.category_id,
+            "used": self.used,
+        }
+        if reveal:
+            d["correct"] = self.correct
+        return d
+
+
 class Round(Base):
-    """type: preround | playoff | semifinal | final"""
+    """type: preround | playoff_presemi | semifinal | playoff_prefinal | final"""
 
     __tablename__ = "rounds"
 
@@ -55,6 +97,7 @@ class Round(Base):
     type = Column(String(32), nullable=False)
     status = Column(String(32), default="pending")  # pending|active|finished
     skill_levels = Column(JSON, default=lambda: [1, 2, 3, 4, 5])
+    question_pool = Column(String(64), default="standard")  # 'standard'|'cat:<id>'
 
 
 class RoundPlayer(Base):

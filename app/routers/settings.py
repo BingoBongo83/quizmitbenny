@@ -6,7 +6,15 @@ from pydantic import BaseModel
 from .. import game
 from ..auth import require_admin
 from ..db import get_db
-from ..models import Player, Question, Round, RoundPlayer, get_all_settings, set_setting
+from ..models import (
+    CustomQuestion,
+    Player,
+    Question,
+    Round,
+    RoundPlayer,
+    get_all_settings,
+    set_setting,
+)
 from ..ws import broadcast_state_and_serial
 
 router = APIRouter(prefix="/api/settings", dependencies=[Depends(require_admin)])
@@ -164,6 +172,9 @@ def reset_questions():
     db = next(get_db())
     try:
         db.query(Question).update({Question.used: False, Question.used_round_id: None})
+        db.query(CustomQuestion).update(
+            {CustomQuestion.used: False, CustomQuestion.used_round_id: None}
+        )
         db.commit()
         return {"ok": True}
     finally:

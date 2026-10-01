@@ -55,12 +55,39 @@
     </div>
 
     <div class="panel full">
-      <h2>Runden-Zuordnung</h2>
+      <h2>Runden-Zuordnung &amp; Fragen-Pools</h2>
       <div id="roundAssign" class="muted">Noch kein Spiel erstellt.</div>
     </div>
 
     <div class="panel full">
-      <h2>Fragen</h2>
+      <h2>Kategorien &amp; eigene Fragen</h2>
+      <p class="muted" style="margin-bottom:10px">Eigene Fragen werden nur gespielt, wenn eine Runde auf diese Kategorie eingestellt ist (Runden-Zuordnung oben).</p>
+      <div id="categoryList"></div>
+      <div class="player-row">
+        <input type="text" id="newCatName" placeholder="Neue Kategorie">
+        <button id="addCat">Hinzufügen</button>
+      </div>
+      <div id="catDetail" class="hidden" style="margin-top:14px">
+        <h3 id="catDetailName"></h3>
+        <div class="btnrow" style="margin-bottom:10px">
+          <input type="file" id="cqImport" accept=".json,.csv" style="display:none">
+          <button onclick="document.getElementById('cqImport').click()">CSV/JSON importieren</button>
+        </div>
+        <div class="player-row">
+          <input type="text" id="cq_text" placeholder="Fragetext" style="flex:3">
+          <input type="text" id="cq_a1" placeholder="Antwort 1 (richtig)">
+          <input type="text" id="cq_a2" placeholder="Antwort 2">
+          <input type="text" id="cq_a3" placeholder="Antwort 3">
+          <input type="text" id="cq_a4" placeholder="Antwort 4">
+          <select id="cq_skill"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+          <button id="cq_add">+</button>
+        </div>
+        <table class="list" id="cqTable"></table>
+      </div>
+    </div>
+
+    <div class="panel full">
+      <h2>Fragen (Standard-Pool)</h2>
       <div class="btnrow" style="margin-bottom:10px">
         <input type="text" id="qSearch" placeholder="Suche …">
         <select id="qSkillFilter"><option value="">alle Skills</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>

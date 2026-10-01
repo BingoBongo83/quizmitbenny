@@ -17,7 +17,9 @@ import threading
 from sqlalchemy.orm import Session
 
 from .models import (
+    Category,
     ConfigKV,
+    CustomQuestion,
     Player,
     Question,
     Round,
@@ -43,7 +45,9 @@ _state = {
     "phase": "idle",  # idle | question | buzzed | resolved
     "round_id": None,
     "question_id": None,
+    "question_source": None,  # 'q' (standard pool) | 'c' (custom/category)
     "pending_question_id": None,  # previewed "next question" for the moderator
+    "pending_source": None,
     "buzzed_slot": None,
     "picked_answer": None,
     "correct_answer": None,
@@ -121,6 +125,9 @@ def create_game(db: Session, player_ids: list[int], shuffle: bool = True):
         db.query(RoundPlayer).delete()
         db.query(Round).delete()
         db.query(Question).update({Question.used: False, Question.used_round_id: None})
+        db.query(CustomQuestion).update(
+            {CustomQuestion.used: False, CustomQuestion.used_round_id: None}
+        )
         s = get_all_settings(db)
         n = s["players_per_round"]
         p = s["num_prerounds"]
@@ -145,7 +152,8 @@ def create_game(db: Session, player_ids: list[int], shuffle: bool = True):
 
         _state.update({
             "phase": "idle", "round_id": None, "question_id": None,
-            "pending_question_id": None,
+            "question_source": None,
+            "pending_question_id": None, "pending_source": None,
             "buzzed_slot": None, "picked_answer": None,
             "correct_answer": None, "blocked_slots": [],
             "game_started": True,
@@ -210,7 +218,8 @@ def finish_round(db: Session, round_id: int):
         db.flush()
 
         _state.update({
-            "phase": "idle", "question_id": None, "pending_question_id": None,
+            "phase": "idle", "question_id": None, "question_source": None,
+            "pending_question_id": None, "pending_source": None,
             "buzzed_slot": None,
             "picked_answer": None, "correct_answer": None,
             "blocked_slots": [], "round_id": None,
@@ -365,7 +374,8 @@ def start_round(db: Session, round_id: int):
             return None
         rnd.status = "active"
         _state.update({"round_id": round_id, "phase": "idle",
-                       "question_id": None, "pending_question_id": None,
+                       "question_id": None, "question_source": None,
+                       "pending_question_id": None, "pending_source": None,
                        "buzzed_slot": None,
                        "picked_answer": None, "correct_answer": None,
                        "blocked_slots": []})
@@ -375,41 +385,77 @@ def start_round(db: Session, round_id: int):
         return rnd
 
 
+def _model_for(source: str):
+    return CustomQuestion if source == "c" else Question
+
+
+def get_question(db: Session):
+    """The currently shown question object (source-aware), or None."""
+    if not _state["question_id"]:
+        return None
+    return db.get(_model_for(_state.get("question_source")), _state["question_id"])
+
+
 def pick_question(db: Session):
-    """Choose a random unused question allowed by current round's skill levels."""
+    """Choose a random unused question from the current round's pool.
+    Returns (question_obj, source) with source 'q'|'c', or (None, None)."""
     round_id = _state["round_id"]
     rnd = db.get(Round, round_id) if round_id else None
     skills = rnd.skill_levels if rnd and rnd.skill_levels else [1, 2, 3, 4, 5]
+    pool = (rnd.question_pool if rnd else "standard") or "standard"
+
+    if pool.startswith("cat:"):
+        try:
+            cat_id = int(pool[4:])
+        except ValueError:
+            cat_id = -1
+        qs = (
+            db.query(CustomQuestion)
+            .filter(CustomQuestion.used == False,
+                    CustomQuestion.skill.in_(skills),
+                    CustomQuestion.category_id == cat_id)
+            .all()
+        )
+        if not qs:
+            # category exhausted -> any unused custom question
+            qs = db.query(CustomQuestion).filter(CustomQuestion.used == False).all()
+        if not qs:
+            # last resort: standard pool
+            qs = db.query(Question).filter(Question.used == False).all()
+            return (random.choice(qs), "q") if qs else (None, None)
+        return random.choice(qs), "c"
+
     qs = (
         db.query(Question)
         .filter(Question.used == False, Question.skill.in_(skills))
         .all()
     )
     if not qs:
-        # fall back to any unused question
         qs = db.query(Question).filter(Question.used == False).all()
     if not qs:
-        return None
-    return random.choice(qs)
+        return None, None
+    return random.choice(qs), "q"
 
 
 def _ensure_pending_question(db: Session):
     """Pre-pick the 'next question' so the moderator sees a preview."""
     if _state["pending_question_id"] is None:
-        q = pick_question(db)
+        q, src = pick_question(db)
         _state["pending_question_id"] = q.id if q else None
+        _state["pending_source"] = src
 
 
 def show_question(db: Session):
     """Moderator: show next question on the board and arm buzzers."""
     with _lock:
-        q = None
+        q, src = None, None
         if _state["pending_question_id"]:
-            q = db.get(Question, _state["pending_question_id"])
+            src = _state.get("pending_source") or "q"
+            q = db.get(_model_for(src), _state["pending_question_id"])
             if q and q.used:
-                q = None
+                q, src = None, None
         if q is None:
-            q = pick_question(db)
+            q, src = pick_question(db)
         if q is None:
             return None, "Keine Fragen mehr im Pool für diese Runde."
         q.used = True
@@ -417,7 +463,9 @@ def show_question(db: Session):
         _state.update({
             "phase": "question",
             "question_id": q.id,
+            "question_source": src,
             "pending_question_id": None,
+            "pending_source": None,
             "buzzed_slot": None,
             "picked_answer": None,
             "correct_answer": None,
@@ -434,8 +482,8 @@ def skip_question(db: Session):
     The pending preview question moves up as the next one."""
     with _lock:
         _state.update({
-            "phase": "idle", "question_id": None, "buzzed_slot": None,
-            "picked_answer": None, "correct_answer": None,
+            "phase": "idle", "question_id": None, "question_source": None,
+            "buzzed_slot": None, "picked_answer": None, "correct_answer": None,
         })
         _ensure_pending_question(db)
         _persist_state(db)
@@ -471,7 +519,7 @@ def pick_answer(db: Session, answer_idx: int):
     with _lock:
         if _state["phase"] != "buzzed":
             return None, None
-        q = db.get(Question, _state["question_id"])
+        q = get_question(db)
         if not q:
             return None, None
         s = get_all_settings(db)
@@ -504,8 +552,8 @@ def unshow_question(db: Session):
     """Hide the current question, keep scores (back to idle)."""
     with _lock:
         _state.update({
-            "phase": "idle", "buzzed_slot": None, "picked_answer": None,
-            "correct_answer": None,
+            "phase": "idle", "question_source": None, "buzzed_slot": None,
+            "picked_answer": None, "correct_answer": None,
         })
         _persist_state(db)
 
@@ -567,17 +615,30 @@ def board_state(db: Session) -> dict:
         } for rp in rps]
     question = None
     if _state["question_id"] and _state["phase"] != "idle":
-        q = db.get(Question, _state["question_id"])
+        q = get_question(db)
         if q:
             question = q.to_dict(reveal=_state["phase"] == "resolved")
+            if _state.get("question_source") == "c":
+                cat = db.get(Category, q.category_id)
+                question["category"] = cat.name if cat else ""
             if _state["phase"] == "resolved":
                 question["picked"] = _state["picked_answer"]
+    pool_label = ""
+    if rnd:
+        pool = rnd.question_pool or "standard"
+        if pool.startswith("cat:"):
+            cat = db.get(Category, int(pool[4:])) if pool[4:].isdigit() else None
+            pool_label = f"Kategorie: {cat.name}" if cat else "Kategorie"
+        else:
+            pool_label = "Standard-Pool"
     return {
         "phase": _state["phase"],
         "round": {
             "id": rnd.id, "number": rnd.number,
             "type": rnd.type, "type_label": ROUND_TYPE_LABELS.get(rnd.type, rnd.type),
             "status": rnd.status,
+            "question_pool": rnd.question_pool or "standard",
+            "pool_label": pool_label,
         } if rnd else None,
         "players": players,
         "question": question,
@@ -589,33 +650,50 @@ def board_state(db: Session) -> dict:
 def admin_state(db: Session) -> dict:
     """Extended state for moderator panel."""
     st = board_state(db)
-    # next question preview: pick deterministically? we preview a random candidate
-    # and let admin see the current question's correct answer
+    # let admin see the current question's correct answer
     if st["question"]:
-        q = db.get(Question, _state["question_id"])
+        q = get_question(db)
         st["question"]["correct"] = q.correct if q else None
     # next-question preview for the moderator
     st["next_question"] = None
     if _state["pending_question_id"]:
-        pq = db.get(Question, _state["pending_question_id"])
+        pq = db.get(_model_for(_state.get("pending_source")),
+                    _state["pending_question_id"])
         if pq:
-            st["next_question"] = pq.to_dict(reveal=True) | {"correct": pq.correct}
+            st["next_question"] = pq.to_dict(reveal=True)
     rounds = db.query(Round).order_by(Round.number).all()
     st["rounds"] = [{
         "id": r.id, "number": r.number, "type": r.type,
         "type_label": ROUND_TYPE_LABELS.get(r.type, r.type),
         "status": r.status,
         "skill_levels": r.skill_levels,
+        "question_pool": r.question_pool or "standard",
         "players": [{
             "slot": rp.slot, "name": db.get(Player, rp.player_id).name,
             "score": rp.score, "place": rp.place, "qualified": rp.qualified,
         } for rp in db.query(RoundPlayer).filter(
             RoundPlayer.round_id == r.id).order_by(RoundPlayer.slot).all()],
     } for r in rounds]
-    # previous (last used) question
-    last = (db.query(Question)
-            .filter(Question.used == True)
-            .order_by(Question.used_round_id.desc(), Question.id.desc())
-            .all())
-    st["previous_questions"] = [q.to_dict(reveal=True) for q in last[:5]]
+    # previous (last used) questions from both pools
+    last_q = (db.query(Question)
+              .filter(Question.used == True)
+              .order_by(Question.used_round_id.desc(), Question.id.desc())
+              .limit(5).all())
+    last_c = (db.query(CustomQuestion)
+              .filter(CustomQuestion.used == True)
+              .order_by(CustomQuestion.used_round_id.desc(),
+                        CustomQuestion.id.desc())
+              .limit(5).all())
+    merged = sorted(
+        last_q + list(last_c),
+        key=lambda q: (q.used_round_id or 0, q.id), reverse=True,
+    )[:5]
+    prev = []
+    for q in merged:
+        d = q.to_dict(reveal=True)
+        if isinstance(q, CustomQuestion):
+            cat = db.get(Category, q.category_id)
+            d["category"] = cat.name if cat else ""
+        prev.append(d)
+    st["previous_questions"] = prev
     return st

@@ -20,6 +20,10 @@ class AnswerBody(BaseModel):
     answer: int  # 1-4
 
 
+class PoolBody(BaseModel):
+    pool: str  # 'standard' | 'cat:<id>'
+
+
 @router.post("/create")
 async def create_game(body: CreateGameBody, request: Request):
     db = next(get_db())
@@ -44,6 +48,31 @@ async def start_round(round_id: int):
     return {"ok": True}
 
 
+@router.put("/round/{round_id}/pool")
+async def set_round_pool(round_id: int, body: PoolBody):
+    """Set which question pool a round draws from."""
+    from ..models import Category, Round
+    db = next(get_db())
+    try:
+        rnd = db.get(Round, round_id)
+        if not rnd:
+            raise HTTPException(404, "Runde nicht gefunden")
+        if rnd.status == "finished":
+            raise HTTPException(400, "Runde ist bereits beendet")
+        pool = body.pool
+        if pool.startswith("cat:"):
+            if not pool[4:].isdigit() or not db.get(Category, int(pool[4:])):
+                raise HTTPException(400, "Unbekannte Kategorie")
+        elif pool != "standard":
+            raise HTTPException(400, "Ungültiger Pool")
+        rnd.question_pool = pool
+        db.commit()
+    finally:
+        db.close()
+    await broadcast_state_and_serial()
+    return {"ok": True}
+
+
 @router.post("/round/{round_id}/finish")
 async def finish_round(round_id: int):
     db = next(get_db())
@@ -60,12 +89,13 @@ async def show_question():
     db = next(get_db())
     try:
         q, err = game.show_question(db)
+        qd = q.to_dict(reveal=True) if q else None
         if err:
             raise HTTPException(400, err)
     finally:
         db.close()
     await broadcast_state_and_serial()
-    return {"ok": True, "question": q.to_dict(reveal=True) if q else None}
+    return {"ok": True, "question": qd}
 
 
 @router.post("/question/skip")

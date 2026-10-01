@@ -134,14 +134,138 @@ document.getElementById("resetGame").onclick = async () => {
     await api("/api/settings/reset-game", "POST");
 };
 
+// ---------------- categories + custom questions ----------------
+let categories = [];
+let activeCat = null;
+let editQid = null;
+
+async function loadCategories() {
+  categories = await api("/api/categories");
+  const el = document.getElementById("categoryList");
+  el.innerHTML = categories.map((c) => `
+    <div class="player-row">
+      <input type="text" value="${esc(c.name)}" data-cid="${c.id}" class="cname" style="flex:1">
+      <span class="badge">${c.count} Fragen</span>
+      <button data-cid="${c.id}" class="csave">Speichern</button>
+      <button data-cid="${c.id}" data-name="${esc(c.name)}" class="copen">Fragen</button>
+      <button data-cid="${c.id}" class="cdel danger">×</button>
+    </div>`).join("") || '<span class="muted">Keine Kategorien – lege eine an, dann Fragen hinzufügen.</span>';
+  el.querySelectorAll(".csave").forEach((b) => (b.onclick = async () => {
+    const name = el.querySelector(`.cname[data-cid="${b.dataset.cid}"]`).value;
+    await api(`/api/categories/${b.dataset.cid}`, "PUT", { name });
+    loadCategories();
+  }));
+  el.querySelectorAll(".copen").forEach((b) => (b.onclick = () => openCategory(+b.dataset.cid, b.dataset.name)));
+  el.querySelectorAll(".cdel").forEach((b) => (b.onclick = async () => {
+    if (confirm("Kategorie inkl. aller Fragen löschen?")) {
+      await api(`/api/categories/${b.dataset.cid}`, "DELETE");
+      if (activeCat === +b.dataset.cid) document.getElementById("catDetail").classList.add("hidden");
+      loadCategories(); loadRounds();
+    }
+  }));
+}
+
+document.getElementById("addCat").onclick = async () => {
+  const name = document.getElementById("newCatName").value.trim();
+  if (!name) return;
+  await api("/api/categories", "POST", { name });
+  document.getElementById("newCatName").value = "";
+  loadCategories(); loadRounds();
+};
+
+async function openCategory(cid, name) {
+  activeCat = cid;
+  editQid = null;
+  document.getElementById("catDetail").classList.remove("hidden");
+  document.getElementById("catDetailName").textContent = `Fragen in „${name}“`;
+  document.getElementById("cq_add").textContent = "+";
+  loadCustomQuestions();
+}
+
+async function loadCustomQuestions() {
+  if (!activeCat) return;
+  const qs = await api(`/api/categories/${activeCat}/questions`);
+  document.getElementById("cqTable").innerHTML =
+    `<tr><th>Frage</th><th>Skill</th><th>✓</th><th></th></tr>` +
+    qs.map((x) => `<tr>
+      <td>${esc(x.text)}</td><td>${x.skill}</td>
+      <td>${"ABCD"[x.correct - 1]}</td>
+      <td>
+        <button class="cqedit" data-qid="${x.id}">edit</button>
+        <button class="cqdel danger" data-qid="${x.id}">×</button>
+      </td></tr>`).join("") || '<tr><td class="muted">Keine Fragen</td></tr>';
+  window._cqs = qs;
+  document.querySelectorAll(".cqdel").forEach((b) => (b.onclick = async () => {
+    if (confirm("Frage löschen?")) {
+      await api(`/api/categories/${activeCat}/questions/${b.dataset.qid}`, "DELETE");
+      loadCustomQuestions(); loadCategories();
+    }
+  }));
+  document.querySelectorAll(".cqedit").forEach((b) => (b.onclick = () => {
+    const q = window._cqs.find((x) => x.id === +b.dataset.qid);
+    if (!q) return;
+    cq_text.value = q.text;
+    // correct answer goes into field 1 (matches the "(richtig)" label)
+    const correct = q.answers[q.correct - 1];
+    const wrong = q.answers.filter((_, i) => i !== q.correct - 1);
+    [cq_a1, cq_a2, cq_a3, cq_a4].forEach((el, i) =>
+      (el.value = i === 0 ? correct : wrong[i - 1] ?? ""));
+    cq_skill.value = q.skill;
+    editQid = q.id;
+    document.getElementById("cq_add").textContent = "Speichern";
+    cq_text.focus();
+  }));
+}
+
+document.getElementById("cq_add").onclick = async () => {
+  const body = {
+    text: cq_text.value, answer1: cq_a1.value, answer2: cq_a2.value,
+    answer3: cq_a3.value, answer4: cq_a4.value,
+    correct: 1, skill: +cq_skill.value,
+  };
+  if (!body.text || !body.answer1) return alert("Frage + Antworten ausfüllen");
+  if (editQid) {
+    await api(`/api/categories/${activeCat}/questions/${editQid}`, "PUT", body);
+    editQid = null;
+    document.getElementById("cq_add").textContent = "+";
+  } else {
+    await api(`/api/categories/${activeCat}/questions`, "POST", body);
+  }
+  ["cq_text", "cq_a1", "cq_a2", "cq_a3", "cq_a4"].forEach((id) => (document.getElementById(id).value = ""));
+  loadCustomQuestions(); loadCategories();
+};
+
+document.getElementById("cqImport").onchange = async (e) => {
+  const f = e.target.files[0];
+  if (!f || !activeCat) return;
+  const fd = new FormData();
+  fd.append("file", f);
+  const r = await fetch(`/api/categories/${activeCat}/import`, { method: "POST", body: fd });
+  const j = await r.json();
+  alert(r.ok ? `${j.imported} Fragen importiert` : j.detail || "Fehler");
+  e.target.value = "";
+  loadCustomQuestions(); loadCategories();
+};
+
+// ---------------- rounds + pools ----------------
 async function loadRounds() {
   const st = await api("/api/game/state");
   const el = document.getElementById("roundAssign");
   if (!st.rounds.length) { el.textContent = "Noch kein Spiel erstellt."; return; }
+  const poolOpts = (sel) =>
+    `<option value="standard"${sel === "standard" ? " selected" : ""}>Standard-Pool</option>` +
+    categories.map((c) =>
+      `<option value="cat:${c.id}"${sel === `cat:${c.id}` ? " selected" : ""}>${esc(c.name)}</option>`
+    ).join("");
   el.innerHTML = st.rounds.map((r) => `
-    <div style="margin:6px 0"><b>${r.type_label} #${r.number}</b> (${r.status}):
-      ${r.players.map((p) => `<span class="badge">${esc(p.name)}</span>`).join(" ")}
+    <div style="margin:8px 0"><b>${r.type_label} #${r.number}</b>
+      <span class="badge ${r.status === "active" ? "active" : r.status === "finished" ? "finished" : ""}">${r.status}</span>
+      ${r.status !== "finished" ? `<select class="poolSel" data-rid="${r.id}">${poolOpts(r.question_pool)}</select>` : ""}
+      <br>${r.players.map((p) => `<span class="badge">${esc(p.name)}</span>`).join(" ")}
     </div>`).join("");
+  el.querySelectorAll(".poolSel").forEach((s) => (s.onchange = async () => {
+    await api(`/api/game/round/${s.dataset.rid}/pool`, "PUT", { pool: s.value });
+  }));
 }
 
 // ---------------- questions ----------------
@@ -203,6 +327,7 @@ document.getElementById("resetUsed").onclick = async () => {
 (async () => {
   await loadSettings();
   await loadPlayers();
+  await loadCategories();
   await loadRounds();
   await loadQuestions();
   document.getElementById("s_ppr").onchange = loadPreview;

@@ -115,6 +115,58 @@ game.finish_round(db, final.id)
 ranked = db.query(RoundPlayer).filter(RoundPlayer.round_id == final.id).order_by(RoundPlayer.score.desc()).all()
 print(f"OK Spiel beendet. Sieger: {db.get(Player, ranked[0].player_id).name}")
 
+# --- category pool: custom questions only when category chosen ---
+from app.models import Category, CustomQuestion
+cat = Category(name="Testkategorie")
+db.add(cat)
+db.flush()
+for i in range(5):
+    db.add(CustomQuestion(
+        category_id=cat.id, text=f"Eigene Frage {i+1}?",
+        answer1="R", answer2="x", answer3="y", answer4="z",
+        correct=1, skill=3,
+    ))
+db.commit()
+
+# new game, first round on the category pool
+db.query(RoundPlayer).delete(); db.query(Round).delete()
+db.query(Question).update({Question.used: False})
+db.query(CustomQuestion).update({CustomQuestion.used: False})
+game.get_state().update({"phase": "idle", "round_id": None,
+                         "pending_question_id": None, "pending_source": None,
+                         "question_source": None, "game_started": False})
+game.create_game(db, [p.id for p in players], shuffle=True)
+r1 = db.query(Round).order_by(Round.number).first()
+r1.question_pool = f"cat:{cat.id}"
+db.commit()
+game.start_round(db, r1.id)
+q, err = game.show_question(db)
+assert q and isinstance(q, CustomQuestion), "expected a custom question"
+assert q.text.startswith("Eigene Frage")
+print("OK Kategorie-Pool: eigene Frage gezogen")
+
+# category exhausted -> falls back to any unused custom, then standard
+db.query(CustomQuestion).update({CustomQuestion.used: True})
+db.commit()
+game.get_state().update({"phase": "idle", "question_id": None,
+                         "pending_question_id": None, "pending_source": None})
+q, err = game.show_question(db)
+assert q is not None  # fell back to standard pool
+assert not isinstance(q, CustomQuestion)
+print("OK Kategorie leer -> Fallback auf Standard-Pool")
+
+# standard pool never serves custom questions
+db.query(CustomQuestion).update({CustomQuestion.used: False})
+db.commit()
+r1.question_pool = "standard"
+db.commit()
+game.get_state().update({"phase": "idle", "question_id": None,
+                         "pending_question_id": None, "pending_source": None})
+for _ in range(5):
+    q, _src = game.pick_question(db)
+    assert not isinstance(q, CustomQuestion)
+print("OK Standard-Pool zieht niemals eigene Fragen")
+
 # --- alternate config: 4 prerounds x 3 players = 12, semis need 6 ---
 db.query(RoundPlayer).delete(); db.query(Round).delete()
 db.query(Question).update({Question.used: False})

@@ -27,7 +27,8 @@ function render(st) {
   // current round + players
   const cur = document.getElementById("curRound");
   if (st.round) {
-    cur.innerHTML = `<span class="badge active">${st.round.type_label}</span> Runde #${st.round.number}`;
+    cur.innerHTML = `<span class="badge active">${st.round.type_label}</span> Runde #${st.round.number}` +
+      (st.round.pool_label ? ` <span class="muted">· ${esc(st.round.pool_label)}</span>` : "");
   } else {
     cur.textContent = st.game_started ? "Keine aktive Runde" : "Spiel noch nicht gestartet";
   }

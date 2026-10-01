@@ -2,6 +2,7 @@ import json
 import logging
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from sqlalchemy import inspect, text
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -9,7 +10,7 @@ from .config import BASE_DIR, BUZZER_TOKEN, SECRET_KEY
 from .db import Base, SessionLocal, engine
 from . import game
 from .models import AdminUser
-from .routers import control, pages, questions, settings
+from .routers import categories, control, pages, questions, settings
 from .ws import handle_buzzer_message, manager, may_buzz
 
 logging.basicConfig(level=logging.INFO)
@@ -22,13 +23,36 @@ app.include_router(pages.router)
 app.include_router(control.router)
 app.include_router(settings.router)
 app.include_router(questions.router)
+app.include_router(categories.router)
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+
+def _migrate_columns():
+    """Add columns that create_all won't add to existing tables."""
+    insp = inspect(engine)
+    wanted = {
+        "rounds": {
+            "question_pool": "VARCHAR(64) DEFAULT 'standard'",
+        },
+    }
+    for table, cols in wanted.items():
+        if table not in insp.get_table_names():
+            continue
+        existing = {c["name"] for c in insp.get_columns(table)}
+        for col, ddl in cols.items():
+            if col not in existing:
+                with engine.begin() as conn:
+                    conn.execute(text(
+                        f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"
+                    ))
+                logger.info("migration: added %s.%s", table, col)
 
 
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(engine)
+    _migrate_columns()
     db = SessionLocal()
     try:
         game.load_state(db)
