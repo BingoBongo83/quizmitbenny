@@ -192,6 +192,8 @@ async def seed_questions(body: SeedBody):
     """Fetch from OpenTriviaDB, translate to German via DeepL, insert."""
     import asyncio
     from scripts.seed_questions import seed
+    if not 1 <= body.amount <= 200:
+        raise HTTPException(400, "Menge muss 1-200 sein")
     try:
         inserted = await asyncio.get_event_loop().run_in_executor(
             None, seed, body.amount, body.category, body.difficulty, body.translate

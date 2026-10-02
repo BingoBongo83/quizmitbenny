@@ -68,7 +68,23 @@ def translate_batch(texts, api_key):
 
 
 def seed(amount=20, category=None, difficulty=None, translate=True):
-    results = fetch_opentdb(amount, category, difficulty)
+    # OpenTriviaDB: max 50 per request, ~1 request per 5 s per IP
+    results = []
+    remaining = amount
+    while remaining > 0:
+        batch = min(remaining, 50)
+        try:
+            chunk = fetch_opentdb(batch, category, difficulty)
+        except RuntimeError:
+            if results:
+                break  # partial import is better than none
+            raise
+        results.extend(chunk)
+        remaining -= batch
+        if len(chunk) < batch:
+            break  # pool exhausted for this category/difficulty
+        if remaining > 0:
+            time.sleep(5)  # rate limit between OTDB requests
     if translate and not DEEPL_API_KEY:
         raise RuntimeError("DEEPL_API_KEY nicht gesetzt – Übersetzung nicht möglich")
 

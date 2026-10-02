@@ -366,10 +366,15 @@ document.getElementById("cqImport").onchange = async (e) => {
   if (!f || !activeCat) return;
   const fd = new FormData();
   fd.append("file", f);
-  const r = await fetch(`/api/categories/${activeCat}/import`, { method: "POST", body: fd });
-  const j = await r.json();
-  alert(r.ok ? `${j.imported} Fragen importiert` : j.detail || "Fehler");
-  e.target.value = "";
+  impOverlay(true);
+  try {
+    const r = await fetch(`/api/categories/${activeCat}/import`, { method: "POST", body: fd });
+    const j = await r.json();
+    alert(r.ok ? `${j.imported} Fragen importiert` : j.detail || "Fehler");
+  } finally {
+    impOverlay(false);
+    e.target.value = "";
+  }
   loadCustomQuestions(); loadCategories();
 };
 
@@ -552,22 +557,41 @@ document.getElementById("nq_add").onclick = async () => {
   loadQuestions();
 };
 
+const impOverlay = (on) =>
+  document.getElementById("impOverlay").classList.toggle("hidden", !on);
+
 document.getElementById("qImport").onchange = async (e) => {
   const f = e.target.files[0];
   if (!f) return;
   const fd = new FormData();
   fd.append("file", f);
-  const r = await fetch("/api/questions/import", { method: "POST", body: fd });
-  const j = await r.json();
-  alert(r.ok ? `${j.imported} Fragen importiert` : j.detail || "Fehler");
+  impOverlay(true);
+  try {
+    const r = await fetch("/api/questions/import", { method: "POST", body: fd });
+    const j = await r.json();
+    alert(r.ok ? `${j.imported} Fragen importiert` : j.detail || "Fehler");
+  } finally {
+    impOverlay(false);
+    e.target.value = "";
+  }
   loadQuestions();
 };
 
 document.getElementById("qSeedBtn").onclick = async () => {
-  const amount = +prompt("Wie viele Fragen von OpenTriviaDB laden? (werden via DeepL übersetzt)", "20");
+  const amount = +prompt(
+    "Wie viele Fragen von OpenTriviaDB laden? (max. 200, werden via DeepL übersetzt)", "20");
   if (!amount) return;
-  const j = await api("/api/questions/seed", "POST", { amount, translate: true });
-  alert(`${j.imported} Fragen importiert`);
+  if (amount > 200) {
+    alert("Maximal 200 Fragen pro Import.");
+    return;
+  }
+  impOverlay(true);
+  try {
+    const j = await api("/api/questions/seed", "POST", { amount, translate: true });
+    alert(`${j.imported} Fragen importiert`);
+  } catch (e) { /* api() already alerted */ } finally {
+    impOverlay(false);
+  }
   loadQuestions();
 };
 
