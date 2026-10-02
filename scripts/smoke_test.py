@@ -386,6 +386,10 @@ db.commit()
 q, err = game.show_question(db)  # cap = 1: first question fine
 assert q and not err
 game.skip_question(db)
+# broadcast hook: detects the tie eagerly, before 'Frage zeigen' is clicked
+game.eval_tiebreak(db)
+assert game.get_state()["tiebreak_slots"] == [2, 3]
+assert game.serial_commands_for_phase() == ["5", "9", "B 25"]
 q, err = game.show_question(db)  # cap reached, but tie -> Stichfrage
 assert q and not err
 assert game.get_state()["tiebreak_slots"] == [2, 3]
@@ -404,6 +408,8 @@ assert not game.buzzer_pressed(db, 3)[1]
 assert game.buzzer_pressed(db, 1)[1]
 res, _ = game.pick_answer(db, q.correct)   # lock-in
 res, _ = game.pick_answer(db, q.correct)   # slot1: 8 pts -> clear winner
+game.eval_tiebreak(db)                     # resolved phase: tie cleared
+assert not game.get_state()["tiebreak_slots"]
 q, err = game.show_question(db)            # now truly decided
 assert q is None and "Limit" in err
 assert not game.get_state()["tiebreak_slots"]

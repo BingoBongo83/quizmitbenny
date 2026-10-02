@@ -536,6 +536,26 @@ def tiebreak_players(db: Session, rnd: Round) -> list:
     return []
 
 
+def eval_tiebreak(db: Session) -> None:
+    """Eagerly detect a Stichfrage once the question cap is reached, so the
+    UI/buzzers know before 'Frage zeigen' is pressed. Runs while no question
+    is being played (idle/resolved); scoring during buzzed is untouched."""
+    with _lock:
+        if _state["phase"] not in ("idle", "resolved"):
+            return
+        rnd = db.get(Round, _state["round_id"]) if _state["round_id"] else None
+        if not rnd or rnd.status != "active":
+            _state["tiebreak_slots"] = None
+            return
+        cap = max_questions(db)
+        tied = (cap and questions_asked(db, rnd.id) >= cap
+                and tiebreak_players(db, rnd)) or []
+        new = [rp.slot for rp in tied] or None
+        if new != _state.get("tiebreak_slots"):
+            _state["tiebreak_slots"] = new
+            _persist_state(db)
+
+
 def show_question(db: Session):
     """Moderator: show next question on the board and arm buzzers."""
     with _lock:
@@ -838,6 +858,8 @@ def serial_commands_for_phase():
         cmds = ["G" if picked == correct else "R"]
         if block_cmd:
             cmds.append(block_cmd)
+        if off_cmd:
+            cmds.append(off_cmd)
         return cmds
     if phase == "idle":
         # "9" on every idle (round start, hide, skip, finish) lifts the

@@ -131,6 +131,11 @@ def may_buzz(ws: WebSocket) -> bool:
 
 async def broadcast_state_and_serial():
     """After any state change: broadcast new state + flush Arduino commands."""
-    cmds = game.serial_commands_for_phase()
+    db = SessionLocal()
+    try:
+        game.eval_tiebreak(db)  # detect Stichfrage eagerly at the question cap
+        cmds = game.serial_commands_for_phase()
+    finally:
+        db.close()
     await manager.send_serial(cmds)
     await manager.broadcast_state()

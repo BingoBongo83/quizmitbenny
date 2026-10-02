@@ -284,10 +284,11 @@ function render(st) {
   const allPending = st.game_started && st.rounds.length &&
     st.rounds.every((r) => r.status === "pending");
   document.getElementById("btnStart").disabled = !(allPending && !st.round);
-  // at the question cap the server decides: either a Stichfrage starts
-  // or the click returns "Limit erreicht – Runde beenden"
+  // at the question cap the server evaluates ties eagerly, so 'tiebreak'
+  // is reliable: no Stichfrage pending -> only 'Runde beenden' stays active
   document.getElementById("btnShow").disabled =
-    !(st.round && (st.phase === "idle" || st.phase === "resolved"));
+    !(st.round && (st.phase === "idle" || st.phase === "resolved")
+      && !(qmax && qasked >= qmax && !tiebreak));
   document.getElementById("btnSkip").disabled = !(st.question);
   document.getElementById("btnHide").disabled = !(st.question);
   document.getElementById("btnReport").disabled = !(st.question);
