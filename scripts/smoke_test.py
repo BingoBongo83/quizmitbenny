@@ -400,6 +400,37 @@ q, err = game.show_question(db)            # cap blocks again
 assert q is None and "Limit" in err
 assert not game.get_state()["tiebreak_slots"]
 print("OK Stichfrage: Gleichstand am Limit -> nur Betroffene buzzern, dann beenden")
+
+# --- Stichfrage im Finale: Gleichstand um den Sieg ---
+# run the 12-player game through to the final (scores irrelevant here)
+while True:
+    r = db.query(Round).filter(
+        Round.status.in_(["pending", "active"])).order_by(Round.number).first()
+    if r is None or r.type == "final":
+        break
+    if r.status != "active":
+        game.start_round(db, r.id)
+    game.finish_round(db, r.id)
+fin = db.query(Round).filter(Round.type == "final").first()
+assert fin
+db.query(Question).update({Question.used: False})
+game.start_round(db, fin.id)
+# last two finalists tied at the top -> Stichfrage for the win
+rps = (db.query(RoundPlayer).filter(RoundPlayer.round_id == fin.id)
+       .order_by(RoundPlayer.slot).all())
+for i, rp in enumerate(rps):
+    rp.score = 8 if i >= len(rps) - 2 else 4
+db.commit()
+q, err = game.show_question(db)
+assert q and not err
+game.skip_question(db)
+q, err = game.show_question(db)  # cap reached, tie for the win -> Stichfrage
+assert q and not err, err
+tied_slots = [rp.slot for rp in rps if rp.score == 8]
+assert game.get_state()["tiebreak_slots"] == tied_slots
+mask = sum(1 << (s - 1) for s in range(1, 6) if s not in tied_slots)
+assert game.serial_commands_for_phase() == ["5", "9", f"B {mask}"]
+print("OK Stichfrage im Finale: Gleichstand um den Sieg wird ausgespielt")
 set_setting(db, "max_questions_enabled", False)
 
 db.close()

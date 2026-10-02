@@ -522,8 +522,11 @@ def _advance_count(db: Session, rnd: Round) -> int:
 
 def tiebreak_players(db: Session, rnd: Round) -> list:
     """RoundPlayers tied exactly at the advancement boundary.
+    In the final the boundary is first place (tie for the win).
     Empty = round outcome is decided; non-empty = 'Stichfrage' needed."""
     a = _advance_count(db, rnd)
+    if rnd.type == "final":
+        a = 1  # nothing to qualify for, but a tie for the win needs a Stichfrage
     if not a:
         return []
     ranked = _ranked_players(db, rnd.id)
