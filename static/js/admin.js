@@ -247,10 +247,11 @@ function render(st) {
     nq.textContent = "";
   }
 
-  // rounds list
+  // rounds list: early stage left, late stage right (prevQs lives in a popup)
   const rl = document.getElementById("roundsList");
   const STATUS_LABEL = { pending: "ausstehend", active: "aktiv", finished: "beendet" };
-  rl.innerHTML = st.rounds.map((r) => {
+  const EARLY = new Set(["preround", "playoff_presemi"]);
+  const renderRound = (r) => {
     const statusBadge = r.status === "active" ? "active" : r.status === "finished" ? "finished" : "";
     const chips = r.players.map((p) => {
       const hex = seatColors[p.slot - 1] || "#888";
@@ -268,8 +269,14 @@ function render(st) {
       </div>
       <div class="rc-players">${chips || '<span class="muted">–</span>'}</div>
     </div>`;
-  }).join("") || '<span class="muted">Keine Runden – erst unter Einstellungen ein Spiel erstellen.</span>';
-  rl.querySelectorAll(".startRound").forEach((b) =>
+  };
+  const emptyMsg = '<span class="muted">Keine Runden – erst unter Einstellungen ein Spiel erstellen.</span>';
+  const emptyDash = '<span class="muted">–</span>';
+  rl.innerHTML = (st.rounds.filter((r) => EARLY.has(r.type)).map(renderRound)
+    .join("")) || emptyMsg;
+  document.getElementById("lateRoundsList").innerHTML =
+    (st.rounds.filter((r) => !EARLY.has(r.type)).map(renderRound).join("")) || emptyDash;
+  document.querySelectorAll(".startRound").forEach((b) =>
     (b.onclick = () => post(`/api/game/round/${b.dataset.round}/start`)));
 
   // previous questions
@@ -335,6 +342,15 @@ document.getElementById("btnFinish").onclick = async () => {
   if (lastState && lastState.round && await Dlg.confirm("Runde wirklich beenden?"))
     post(`/api/game/round/${lastState.round.id}/finish`);
 };
+
+// previous-questions popup
+document.getElementById("prevQsBtn").onclick = () =>
+  document.getElementById("mPrevQs").classList.remove("hidden");
+document.getElementById("mPrevQs").addEventListener("click", (e) => {
+  if (e.target.id === "mPrevQs") e.target.classList.add("hidden");
+});
+document.querySelector("#mPrevQs .modalClose").onclick = () =>
+  document.getElementById("mPrevQs").classList.add("hidden");
 
 // serial connect button
 const serialBtn = document.getElementById("serialBtn");
