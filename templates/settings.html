@@ -47,21 +47,25 @@
 
 <!-- ============ Modals ============ -->
 <div class="modal-overlay hidden" id="m-players">
-  <div class="modal">
+  <div class="modal wide">
     <h2>Spieler</h2>
-    <div id="playerList"></div>
-    <div class="player-row">
-      <input type="text" id="newPlayerName" placeholder="Name">
-      <button id="addPlayer">Hinzufügen</button>
-    </div>
-    <p class="muted" style="margin-top:10px">Die ersten <b>N</b> aktiven Spieler (Reihenfolge der Liste)
-    werden ins Spiel übernommen. N = Spieler/Runde × Vorrunden.</p>
-    <div class="btnrow">
-      <button class="primary" id="createGameShuffle">Spiel erstellen (gemischt)</button>
-      <button id="createGameOrder">Spiel erstellen (Reihenfolge)</button>
-    </div>
-    <div class="btnrow">
-      <button class="danger" id="resetGame">Spiel zurücksetzen</button>
+    <div class="two-col">
+      <div id="playerList"></div>
+      <div>
+        <div class="player-row">
+          <input type="text" id="newPlayerName" placeholder="Name">
+          <button id="addPlayer">Hinzufügen</button>
+        </div>
+        <p class="muted" style="margin-top:10px">Die ersten <b>N</b> aktiven Spieler (Reihenfolge der Liste)
+        werden ins Spiel übernommen. N = Spieler/Runde × Vorrunden.</p>
+        <div class="btnrow">
+          <button class="primary" id="createGameShuffle">Spiel erstellen (gemischt)</button>
+          <button id="createGameOrder">Spiel erstellen (Reihenfolge)</button>
+        </div>
+        <div class="btnrow">
+          <button class="danger" id="resetGame">Spiel zurücksetzen</button>
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="modalClose">Schließen</button>
@@ -70,46 +74,52 @@
 </div>
 
 <div class="modal-overlay hidden" id="m-game">
-  <div class="modal">
+  <div class="modal wide">
     <h2>Spiel-Einstellungen</h2>
-    <label class="field">Spieler pro Runde (3–5)</label>
-    <select id="s_ppr"><option>3</option><option>4</option><option>5</option></select>
-    <label class="field">Vorrunden (3–5)</label>
-    <select id="s_pre"><option>3</option><option>4</option><option>5</option></select>
-    <label class="field">Punkte richtig</label>
-    <input type="number" id="s_pc" value="2">
-    <label class="field">Punkte falsch (eigener)</label>
-    <input type="number" id="s_pws" value="0">
-    <label class="field">Punkte falsch (alle anderen)</label>
-    <input type="number" id="s_pwo" value="2">
-    <label class="field"><input type="checkbox" id="s_block" checked> Sperre nach falscher Antwort (nächste Frage)</label>
-    <label class="field"><input type="checkbox" id="s_lockin" checked> Antwort einloggen (erster Klick = Einloggen, zweiter = Auflösung)</label>
-    <p class="muted" style="margin:-4px 0 8px">Nach Publikumsjoker wird die Antwort immer eingeloggt.</p>
-    <label class="field"><input type="checkbox" id="s_maxq_on"> Max. Fragen pro Runde</label>
-    <div class="player-row" id="s_maxqRow" style="gap:14px;flex-wrap:wrap">
-      <label class="field" style="margin:0">Vorrunde<br>
-        <input type="number" id="s_maxq_preround" min="1" max="200" value="20" style="max-width:80px"></label>
-      <label class="field" style="margin:0">Playoff<br>
-        <input type="number" id="s_maxq_playoff" min="1" max="200" value="20" style="max-width:80px"></label>
-      <label class="field" style="margin:0">Halbfinale<br>
-        <input type="number" id="s_maxq_semifinal" min="1" max="200" value="20" style="max-width:80px"></label>
-      <label class="field" style="margin:0">Finale<br>
-        <input type="number" id="s_maxq_final" min="1" max="200" value="20" style="max-width:80px"></label>
+    <div class="two-col">
+      <div>
+        <label class="field">Spieler pro Runde (3–5)</label>
+        <select id="s_ppr"><option>3</option><option>4</option><option>5</option></select>
+        <label class="field">Vorrunden (3–5)</label>
+        <select id="s_pre"><option>3</option><option>4</option><option>5</option></select>
+        <label class="field">Punkte richtig</label>
+        <input type="number" id="s_pc" value="2">
+        <label class="field">Punkte falsch (eigener)</label>
+        <input type="number" id="s_pws" value="0">
+        <label class="field">Punkte falsch (alle anderen)</label>
+        <input type="number" id="s_pwo" value="2">
+        <label class="field"><input type="checkbox" id="s_block" checked> Sperre nach falscher Antwort (nächste Frage)</label>
+        <label class="field"><input type="checkbox" id="s_lockin" checked> Antwort einloggen (erster Klick = Einloggen, zweiter = Auflösung)</label>
+        <p class="muted" style="margin:-4px 0 8px">Nach Publikumsjoker wird die Antwort immer eingeloggt.</p>
+      </div>
+      <div>
+        <label class="field"><input type="checkbox" id="s_maxq_on"> Max. Fragen pro Runde</label>
+        <div class="player-row" id="s_maxqRow" style="gap:12px;flex-wrap:wrap">
+          <label class="field" style="margin:0">Vorrunde<br>
+            <input type="number" id="s_maxq_preround" min="1" max="200" value="20" style="max-width:72px"></label>
+          <label class="field" style="margin:0">Playoff<br>
+            <input type="number" id="s_maxq_playoff" min="1" max="200" value="20" style="max-width:72px"></label>
+          <label class="field" style="margin:0">Halbfinale<br>
+            <input type="number" id="s_maxq_semifinal" min="1" max="200" value="20" style="max-width:72px"></label>
+          <label class="field" style="margin:0">Finale<br>
+            <input type="number" id="s_maxq_final" min="1" max="200" value="20" style="max-width:72px"></label>
+        </div>
+        <p class="muted" style="margin:-4px 0 8px">Bei Erreichen ist „Frage zeigen“ gesperrt (bei Gleichstand läuft eine Stichfrage), Runde manuell beenden.</p>
+        <label class="field">Sound-Ausgabe</label>
+        <select id="s_sound">
+          <option value="board">Scoreboard</option>
+          <option value="admin">Moderator</option>
+          <option value="both">Beide</option>
+        </select>
+        <h3 class="field" style="margin-top:14px">Joker</h3>
+        <p class="muted" style="margin-bottom:8px">Jeder Spieler hat jeden Joker 1× pro Spiel (Finalisten erhalten neue). Wird vom Moderator für den gebuzzerten Spieler aktiviert.</p>
+        <label class="field"><input type="checkbox" id="s_jfifty" checked> 50:50 (zwei falsche Antworten verschwinden)</label>
+        <label class="field"><input type="checkbox" id="s_jdouble" checked> Doppelte Punkte</label>
+        <label class="field"><input type="checkbox" id="s_jaudience" checked> Publikumsjoker</label>
+        <h3 class="field" style="margin-top:14px">Turnier-Vorschau</h3>
+        <div id="preview" class="muted">…</div>
+      </div>
     </div>
-    <p class="muted" style="margin:-4px 0 8px">Bei Erreichen ist „Frage zeigen“ gesperrt (bei Gleichstand läuft eine Stichfrage), Runde manuell beenden.</p>
-    <label class="field">Sound-Ausgabe</label>
-    <select id="s_sound">
-      <option value="board">Scoreboard</option>
-      <option value="admin">Moderator</option>
-      <option value="both">Beide</option>
-    </select>
-    <h3 class="field" style="margin-top:18px">Joker</h3>
-    <p class="muted" style="margin-bottom:8px">Jeder Spieler hat jeden Joker 1× pro Spiel (Finalisten erhalten neue). Wird vom Moderator für den gebuzzerten Spieler aktiviert.</p>
-    <label class="field"><input type="checkbox" id="s_jfifty" checked> 50:50 (zwei falsche Antworten verschwinden)</label>
-    <label class="field"><input type="checkbox" id="s_jdouble" checked> Doppelte Punkte</label>
-    <label class="field"><input type="checkbox" id="s_jaudience" checked> Publikumsjoker</label>
-    <h3 class="field" style="margin-top:18px">Turnier-Vorschau</h3>
-    <div id="preview" class="muted">…</div>
     <div class="modal-foot">
       <button class="primary" id="saveSettings">Speichern</button>
       <button class="modalCancel">Abbrechen</button>
@@ -235,6 +245,7 @@
       </div>
     </div>
     <table class="list" id="reportedTable"></table>
+    <div class="btnrow" id="rqPager" style="align-items:center"></div>
     <div class="modal-foot">
       <button class="modalClose">Schließen</button>
     </div>
@@ -249,5 +260,5 @@
 </div>
 
 <script src="/static/js/dlg.js?v=1"></script>
-<script src="/static/js/settings.js?v=14"></script>
+<script src="/static/js/settings.js?v=15"></script>
 {% endblock %}

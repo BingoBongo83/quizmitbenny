@@ -394,7 +394,10 @@ async function loadRounds() {
     <div style="margin:8px 0"><b>${r.type_label} #${r.number}</b>
       <span class="badge ${r.status === "active" ? "active" : r.status === "finished" ? "finished" : ""}">${r.status}</span>
       ${r.status !== "finished" ? `<select class="poolSel" data-rid="${r.id}">${poolOpts(r.question_pool)}</select>` : ""}
-      <br>${r.players.map((p) => `<span class="badge">${esc(p.name)}</span>`).join(" ")}
+      <br>${r.players.map((p) => {
+        const hex = (st.seat_colors || [])[p.slot - 1];
+        return `<span class="badge"${hex ? ` style="background:${hex};border-color:transparent;color:#10131f"` : ""}>${esc(p.name)}</span>`;
+      }).join(" ")}
     </div>`).join("");
   el.querySelectorAll(".poolSel").forEach((s) => (s.onchange = async () => {
     await api(`/api/game/round/${s.dataset.rid}/pool`, "PUT", { pool: s.value });
@@ -402,7 +405,7 @@ async function loadRounds() {
 }
 
 // ---------------- questions ----------------
-const Q_PAGE_SIZE = 25;
+const Q_PAGE_SIZE = 10;
 let qPage = 0;
 let qTotal = 0;
 let nqEditId = null;
@@ -463,15 +466,20 @@ document.getElementById("qSearchBtn").onclick = () => { qPage = 0; loadQuestions
 
 // ---------------- reported questions ----------------
 let rqEdit = null;  // {source: 'q'|'c', id, category_id}
+const RQ_PAGE_SIZE = 8;
+let rqPage = 0;
 
 async function loadReported() {
   const qs = await api("/api/questions/reported");
   document.getElementById("sub-reported").textContent =
     qs.length ? `${qs.length} gemeldet` : "keine";
   window._rqs = qs;
+  const rqPages = Math.max(1, Math.ceil(qs.length / RQ_PAGE_SIZE));
+  if (rqPage >= rqPages) rqPage = rqPages - 1;
+  const page = qs.slice(rqPage * RQ_PAGE_SIZE, (rqPage + 1) * RQ_PAGE_SIZE);
   document.getElementById("reportedTable").innerHTML =
     `<tr><th>Frage</th><th>Pool</th><th>✓</th><th></th></tr>` +
-    (qs.map((x) => `<tr>
+    (page.map((x) => `<tr>
       <td>${esc(x.text)}</td>
       <td><span class="badge">${esc(x.pool)}</span></td>
       <td>${"ABCD"[x.correct - 1]}</td>
@@ -480,6 +488,14 @@ async function loadReported() {
         <button class="rqreact primary" data-src="${x.source}" data-qid="${x.id}">Aktivieren</button>
         <button class="rqdel danger" data-i="${qs.indexOf(x)}">×</button></td></tr>`).join("")
      || '<tr><td class="muted" colspan="4">Keine gemeldeten Fragen</td></tr>');
+  document.getElementById("rqPager").innerHTML = qs.length > RQ_PAGE_SIZE
+    ? `<button id="rqPrev" ${rqPage === 0 ? "disabled" : ""}>◀</button>
+       <span class="muted">Seite ${rqPage + 1} / ${rqPages} (${qs.length} gemeldet)</span>
+       <button id="rqNext" ${rqPage >= rqPages - 1 ? "disabled" : ""}>▶</button>`
+    : "";
+  const rqPrev = document.getElementById("rqPrev"), rqNext = document.getElementById("rqNext");
+  if (rqPrev) rqPrev.onclick = () => { rqPage--; loadReported(); };
+  if (rqNext) rqNext.onclick = () => { rqPage++; loadReported(); };
   document.querySelectorAll(".rqreact").forEach((b) => (b.onclick = async () => {
     await api(`/api/questions/reported/${b.dataset.src}/${b.dataset.qid}/reactivate`, "POST");
     rqEdit = null;

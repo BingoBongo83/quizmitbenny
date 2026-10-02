@@ -692,6 +692,9 @@ nav.topnav .spacer { flex: 1; }
   animation: modalIn .22s cubic-bezier(.2,.9,.3,1.1) both;
 }
 .modal.wide { width: min(920px, 100%); }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+@media (max-width: 720px) { .two-col { grid-template-columns: 1fr; } }
+#playerList { max-height: 62vh; overflow-y: auto; padding-right: 4px; }
 .modal h2 {
   font-size: .95em; color: var(--gold); margin-bottom: 12px;
   text-transform: uppercase; letter-spacing: .14em;
