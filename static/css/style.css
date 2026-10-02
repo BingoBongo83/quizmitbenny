@@ -442,6 +442,19 @@ h1, h2, h3 { font-weight: 700; }
   letter-spacing: .14em;
 }
 .panel.full { grid-column: 1 / -1; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.panel-head h2 { margin-bottom: 0; }
+.panel-head-btns { display: flex; gap: 8px; }
+button.sm { padding: .4em .9em; font-size: .78em; }
+.btnrow-label {
+  align-self: center;
+  color: var(--muted);
+  font-size: .85em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  margin-right: 2px;
+}
 
 .admin-players td, .admin-players th { padding: 7px 10px; text-align: left; }
 .admin-players th { color: var(--muted); font-size: .8em; text-transform: uppercase; letter-spacing: .1em; }

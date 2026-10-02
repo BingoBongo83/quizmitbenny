@@ -19,7 +19,13 @@
 
   <div class="admin-grid">
     <div class="panel">
-      <h2>Aktuelle Runde</h2>
+      <div class="panel-head">
+        <h2>Aktuelle Runde</h2>
+        <div class="panel-head-btns">
+          <button class="primary sm" id="btnStart" disabled>START QUIZ</button>
+          <button class="danger sm" id="btnFinish">Runde beenden</button>
+        </div>
+      </div>
       <div id="curRound" class="muted">Keine Runde aktiv</div>
       <div id="qProgress" class="hidden">
         <div class="qp-bar"><div class="qp-fill" id="qpFill"></div></div>
@@ -28,12 +34,13 @@
       <table class="admin-players list" id="curPlayers"></table>
       <div class="muted" style="font-size:.82em;margin-top:4px">Spieler anklicken = Buzzer simulieren</div>
       <div class="btnrow">
-        <button class="primary" id="btnStart" disabled>START QUIZ</button>
-        <button class="primary" id="btnShow">Frage zeigen</button>
-        <button id="btnSkip">Frage überspringen</button>
-        <button id="btnHide">Ausblenden</button>
-        <button id="btnReport" title="Frage als fehlerhaft melden (wird aus dem Pool genommen)">Melden</button>
-        <button class="danger" id="btnFinish">Runde beenden</button>
+        <span class="btnrow-label">Frage</span>
+        <button class="primary" id="btnShow">zeigen</button>
+        <button id="btnHide">ausblenden</button>
+        <button id="btnSkip">überspringen</button>
+        <button id="btnReport" title="Frage als fehlerhaft melden (wird aus dem Pool genommen)">melden</button>
+      </div>
+      <div class="btnrow">
         <button id="prevQsBtn">Vorherige Fragen …</button>
       </div>
     </div>
