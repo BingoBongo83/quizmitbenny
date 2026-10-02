@@ -322,7 +322,7 @@ h1, h2, h3 { font-weight: 700; }
 }
 .crawl-text {
   position: absolute; top: 105%; left: 0; right: 0;
-  animation: crawlMove var(--crawl-dur, 260s) linear infinite;
+  animation: crawlMove var(--crawl-dur, 100s) linear infinite;
   color: var(--gold); text-align: justify;
   font-size: 4.6vh; font-weight: 700; line-height: 1.55;
   text-shadow: 0 0 2vh rgba(255,215,0,.35);
@@ -337,8 +337,8 @@ h1, h2, h3 { font-weight: 700; }
 }
 .crawl-text p { margin: 0 0 6vh; }
 @keyframes crawlMove {
-  95% { opacity: 1; }
-  to { transform: translateY(calc(-100% - 600vh)); opacity: 0; }
+  80% { opacity: 1; }
+  to { transform: translateY(calc(-100% - 160vh)); opacity: 0; }
 }
 
 /* ---------- intermission between rounds ---------- */

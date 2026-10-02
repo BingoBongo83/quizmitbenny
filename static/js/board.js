@@ -155,9 +155,9 @@ function render(state) {
   if (showCrawl && wasHidden) {
     // restart the scroll from the beginning each time it appears
     const t = crawl.querySelector(".crawl-text");
-    // travel = own height + ~6 viewports (start offset + recede past the
-    // horizon until invisible); duration keeps a constant ~3.5vh/s speed
-    const travelPx = t.offsetHeight + 6 * window.innerHeight;
+    // travel = own height + ~1.6 viewports, fading out over the last 20%;
+    // duration keeps a constant ~3.5vh/s scroll speed
+    const travelPx = t.offsetHeight + 1.6 * window.innerHeight;
     t.style.animation = "none"; void t.offsetHeight; t.style.animation = "";
     t.style.animationDuration = Math.round(travelPx / (0.035 * window.innerHeight)) + "s";
   }
