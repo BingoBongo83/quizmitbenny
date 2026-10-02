@@ -75,7 +75,7 @@ async function post(url, body) {
   });
   if (!r.ok) {
     const e = await r.json().catch(() => ({}));
-    alert(e.detail || "Fehler: " + r.status);
+    await Dlg.alert(e.detail || "Fehler: " + r.status);
   }
   return r;
 }
@@ -238,9 +238,9 @@ function render(st) {
       `${esc(st.next_question.answers[st.next_question.correct - 1])} (Skill ${st.next_question.skill}) ` +
       `<a href="#" id="reportNext" style="color:var(--red)">melden</a></span>`;
     const rn = document.getElementById("reportNext");
-    if (rn) rn.onclick = (e) => {
+    if (rn) rn.onclick = async (e) => {
       e.preventDefault();
-      if (confirm("Vorschau-Frage melden und aus dem Pool nehmen?"))
+      if (await Dlg.confirm("Vorschau-Frage melden und aus dem Pool nehmen?"))
         post("/api/game/question/report", { which: "next" });
     };
   } else {
@@ -327,12 +327,12 @@ document.getElementById("btnStart").onclick = () => {
 document.getElementById("btnShow").onclick = () => post("/api/game/question/show");
 document.getElementById("btnSkip").onclick = () => post("/api/game/question/skip");
 document.getElementById("btnHide").onclick = () => post("/api/game/question/hide");
-document.getElementById("btnReport").onclick = () => {
-  if (confirm("Frage als fehlerhaft melden? Sie wird aus allen Pools genommen und ist in Einstellungen → Gemeldete Fragen sichtbar."))
+document.getElementById("btnReport").onclick = async () => {
+  if (await Dlg.confirm("Frage als fehlerhaft melden? Sie wird aus allen Pools genommen und ist in Einstellungen → Gemeldete Fragen sichtbar."))
     post("/api/game/question/report", { which: "current" });
 };
-document.getElementById("btnFinish").onclick = () => {
-  if (lastState && lastState.round && confirm("Runde wirklich beenden?"))
+document.getElementById("btnFinish").onclick = async () => {
+  if (lastState && lastState.round && await Dlg.confirm("Runde wirklich beenden?"))
     post(`/api/game/round/${lastState.round.id}/finish`);
 };
 

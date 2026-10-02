@@ -721,6 +721,12 @@ nav.topnav .spacer { flex: 1; }
 }
 .imp-label { color: var(--muted); font-size: .9em; letter-spacing: .05em; }
 
+/* styled alert/confirm/prompt dialog */
+.dlg-overlay { z-index: 400; }
+.dlg-box { width: min(420px, 100%); }
+.dlg-msg { margin: 2px 0 14px; line-height: 1.45; white-space: pre-wrap; }
+.dlg-input { width: 100%; margin-bottom: 4px; }
+
 .login-box {
   max-width: 380px; margin: 16vh auto; background: var(--card);
   border: 1px solid rgba(120,135,200,.2);

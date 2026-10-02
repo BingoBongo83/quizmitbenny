@@ -12,7 +12,7 @@ window.QuizSerial = (function () {
 
   async function connect() {
     if (!supported()) {
-      alert("Web Serial wird von diesem Browser nicht unterstützt (Chrome/Edge nötig). Alternativ: scripts/buzzer_bridge.py");
+      await Dlg.alert("Web Serial wird von diesem Browser nicht unterstützt (Chrome/Edge nötig). Alternativ: scripts/buzzer_bridge.py");
       return false;
     }
     try {

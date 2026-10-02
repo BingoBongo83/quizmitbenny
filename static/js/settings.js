@@ -6,7 +6,7 @@ const api = async (url, method = "GET", body) => {
   });
   if (!r.ok) {
     const e = await r.json().catch(() => ({}));
-    alert(e.detail || "Fehler: " + r.status);
+    await Dlg.alert(e.detail || "Fehler: " + r.status);
     throw new Error(r.status);
   }
   return r.json().catch(() => ({}));
@@ -118,7 +118,7 @@ async function loadPlayers() {
     loadPlayers(); loadPreview();
   }));
   el.querySelectorAll(".pdel").forEach((b) => (b.onclick = async () => {
-    if (confirm("Spieler löschen?")) {
+    if (await Dlg.confirm("Spieler löschen?")) {
       await api(`/api/settings/players/${b.dataset.pid}`, "DELETE");
       loadPlayers(); loadPreview();
     }
@@ -249,12 +249,12 @@ document.getElementById("createGameShuffle").onclick = () => createGame(true);
 document.getElementById("createGameOrder").onclick = () => createGame(false);
 async function createGame(shuffle) {
   const n = Math.min(players.filter((p) => p.active).length, neededPlayers());
-  if (!confirm(`Spiel mit den ersten ${n} aktiven Spielern erstellen? Bisherige Runden werden gelöscht.`)) return;
+  if (!(await Dlg.confirm(`Spiel mit den ersten ${n} aktiven Spielern erstellen? Bisherige Runden werden gelöscht.`))) return;
   await api("/api/game/create", "POST", { shuffle });
   loadRounds();
 }
 document.getElementById("resetGame").onclick = async () => {
-  if (confirm("Spiel komplett zurücksetzen (Runden + Punkte löschen)?"))
+  if (await Dlg.confirm("Spiel komplett zurücksetzen (Runden + Punkte löschen)?"))
     await api("/api/settings/reset-game", "POST");
 };
 
@@ -283,7 +283,7 @@ async function loadCategories() {
   }));
   el.querySelectorAll(".copen").forEach((b) => (b.onclick = () => openCategory(+b.dataset.cid, b.dataset.name)));
   el.querySelectorAll(".cdel").forEach((b) => (b.onclick = async () => {
-    if (confirm("Kategorie inkl. aller Fragen löschen?")) {
+    if (await Dlg.confirm("Kategorie inkl. aller Fragen löschen?")) {
       await api(`/api/categories/${b.dataset.cid}`, "DELETE");
       if (activeCat === +b.dataset.cid) document.getElementById("catDetail").classList.add("hidden");
       loadCategories(); loadRounds();
@@ -322,7 +322,7 @@ async function loadCustomQuestions() {
       </td></tr>`).join("") || '<tr><td class="muted">Keine Fragen</td></tr>';
   window._cqs = qs;
   document.querySelectorAll(".cqdel").forEach((b) => (b.onclick = async () => {
-    if (confirm("Frage löschen?")) {
+    if (await Dlg.confirm("Frage löschen?")) {
       await api(`/api/categories/${activeCat}/questions/${b.dataset.qid}`, "DELETE");
       loadCustomQuestions(); loadCategories();
     }
@@ -349,7 +349,7 @@ document.getElementById("cq_add").onclick = async () => {
     answer3: cq_a3.value, answer4: cq_a4.value,
     correct: 1, skill: +cq_skill.value,
   };
-  if (!body.text || !body.answer1) return alert("Frage + Antworten ausfüllen");
+  if (!body.text || !body.answer1) return Dlg.alert("Frage + Antworten ausfüllen");
   if (editQid) {
     await api(`/api/categories/${activeCat}/questions/${editQid}`, "PUT", body);
     editQid = null;
@@ -370,7 +370,7 @@ document.getElementById("cqImport").onchange = async (e) => {
   try {
     const r = await fetch(`/api/categories/${activeCat}/import`, { method: "POST", body: fd });
     const j = await r.json();
-    alert(r.ok ? `${j.imported} Fragen importiert` : j.detail || "Fehler");
+    await Dlg.alert(r.ok ? `${j.imported} Fragen importiert` : j.detail || "Fehler");
   } finally {
     impOverlay(false);
     e.target.value = "";
@@ -431,7 +431,7 @@ async function loadQuestions() {
         <button class="qdel danger" data-qid="${x.id}">×</button></td></tr>`).join("")
      || '<tr><td class="muted">Keine Fragen</td></tr>');
   document.querySelectorAll(".qdel").forEach((b) => (b.onclick = async () => {
-    if (confirm("Frage löschen?")) { await api(`/api/questions/${b.dataset.qid}`, "DELETE"); loadQuestions(); }
+    if (await Dlg.confirm("Frage löschen?")) { await api(`/api/questions/${b.dataset.qid}`, "DELETE"); loadQuestions(); }
   }));
   document.querySelectorAll(".qedit").forEach((b) => (b.onclick = () => {
     const x = window._qs.find((v) => v.id === +b.dataset.qid);
@@ -488,7 +488,7 @@ async function loadReported() {
   }));
   document.querySelectorAll(".rqdel").forEach((b) => (b.onclick = async () => {
     const x = window._rqs[+b.dataset.i];
-    if (!confirm("Frage endgültig löschen?")) return;
+    if (!(await Dlg.confirm("Frage endgültig löschen?"))) return;
     await api(x.source === "c"
       ? `/api/categories/${x.category_id}/questions/${x.id}`
       : `/api/questions/${x.id}`, "DELETE");
@@ -519,7 +519,7 @@ document.getElementById("rq_save").onclick = async () => {
     answer4: document.getElementById("rq_a4").value,
     correct: 1, skill: +document.getElementById("rq_skill").value,
   };
-  if (!body.text || !body.answer1) return alert("Frage + Antworten ausfüllen");
+  if (!body.text || !body.answer1) return Dlg.alert("Frage + Antworten ausfüllen");
   if (rqEdit.source === "c") {
     await api(`/api/categories/${rqEdit.category_id}/questions/${rqEdit.id}`, "PUT", body);
   } else {
@@ -546,7 +546,7 @@ document.getElementById("nq_add").onclick = async () => {
     answer3: nq_a3.value, answer4: nq_a4.value, correct: 1,
     skill: +nq_skill.value,
   };
-  if (!body.text || !body.answer1) return alert("Frage + Antworten ausfüllen");
+  if (!body.text || !body.answer1) return Dlg.alert("Frage + Antworten ausfüllen");
   if (nqEditId) {
     await api(`/api/questions/${nqEditId}`, "PUT", body);
     document.getElementById("nq_cancel").onclick();
@@ -569,7 +569,7 @@ document.getElementById("qImport").onchange = async (e) => {
   try {
     const r = await fetch("/api/questions/import", { method: "POST", body: fd });
     const j = await r.json();
-    alert(r.ok ? `${j.imported} Fragen importiert` : j.detail || "Fehler");
+    await Dlg.alert(r.ok ? `${j.imported} Fragen importiert` : j.detail || "Fehler");
   } finally {
     impOverlay(false);
     e.target.value = "";
@@ -578,17 +578,19 @@ document.getElementById("qImport").onchange = async (e) => {
 };
 
 document.getElementById("qSeedBtn").onclick = async () => {
-  const amount = +prompt(
-    "Wie viele Fragen von OpenTriviaDB laden? (max. 200, werden via DeepL übersetzt)", "20");
+  const raw = await Dlg.prompt(
+    "Wie viele Fragen von OpenTriviaDB laden? (max. 200, werden via DeepL übersetzt)",
+    "20", { type: "number" });
+  const amount = +raw;
   if (!amount) return;
   if (amount > 200) {
-    alert("Maximal 200 Fragen pro Import.");
+    await Dlg.alert("Maximal 200 Fragen pro Import.");
     return;
   }
   impOverlay(true);
   try {
     const j = await api("/api/questions/seed", "POST", { amount, translate: true });
-    alert(`${j.imported} Fragen importiert`);
+    await Dlg.alert(`${j.imported} Fragen importiert`);
   } catch (e) { /* api() already alerted */ } finally {
     impOverlay(false);
   }
@@ -596,7 +598,7 @@ document.getElementById("qSeedBtn").onclick = async () => {
 };
 
 document.getElementById("resetUsed").onclick = async () => {
-  if (confirm("Alle 'genutzt'-Markierungen zurücksetzen?")) {
+  if (await Dlg.confirm("Alle 'genutzt'-Markierungen zurücksetzen?")) {
     await api("/api/settings/reset-questions", "POST");
     loadQuestions();
   }
