@@ -396,10 +396,18 @@ assert game.buzzer_pressed(db, 4) == (4, False)
 assert game.buzzer_pressed(db, 2)[1]
 res, _ = game.pick_answer(db, q.correct)   # lock-in
 res, _ = game.pick_answer(db, q.correct)   # judge -> slot2: 6 pts, tie broken
-q, err = game.show_question(db)            # cap blocks again
+# scores now 6,6,4,0 -> tie for 1st place -> another Stichfrage
+q, err = game.show_question(db)
+assert q and not err
+assert game.get_state()["tiebreak_slots"] == [1, 2]
+assert not game.buzzer_pressed(db, 3)[1]
+assert game.buzzer_pressed(db, 1)[1]
+res, _ = game.pick_answer(db, q.correct)   # lock-in
+res, _ = game.pick_answer(db, q.correct)   # slot1: 8 pts -> clear winner
+q, err = game.show_question(db)            # now truly decided
 assert q is None and "Limit" in err
 assert not game.get_state()["tiebreak_slots"]
-print("OK Stichfrage: Gleichstand am Limit -> nur Betroffene buzzern, dann beenden")
+print("OK Stichfrage: Gleichstand an Grenze + Platz 1, dann beenden")
 
 # --- Stichfrage im Finale: Gleichstand um den Sieg ---
 # run the 12-player game through to the final (scores irrelevant here)

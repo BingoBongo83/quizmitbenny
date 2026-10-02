@@ -521,19 +521,19 @@ def _advance_count(db: Session, rnd: Round) -> int:
 
 
 def tiebreak_players(db: Session, rnd: Round) -> list:
-    """RoundPlayers tied exactly at the advancement boundary.
-    In the final the boundary is first place (tie for the win).
-    Empty = round outcome is decided; non-empty = 'Stichfrage' needed."""
-    a = _advance_count(db, rnd)
-    if rnd.type == "final":
-        a = 1  # nothing to qualify for, but a tie for the win needs a Stichfrage
-    if not a:
-        return []
+    """RoundPlayers tied at a boundary that matters: first place
+    (round winner – in the final: the win itself) or the advancement
+    cut. Empty = outcome decided; non-empty = 'Stichfrage' needed."""
     ranked = _ranked_players(db, rnd.id)
-    if len(ranked) <= a or ranked[a - 1].score != ranked[a].score:
+    if len(ranked) < 2:
         return []
-    boundary = ranked[a - 1].score
-    return [rp for rp in ranked if rp.score == boundary]
+    if ranked[0].score == ranked[1].score:
+        return [rp for rp in ranked if rp.score == ranked[0].score]
+    a = _advance_count(db, rnd)
+    if a and len(ranked) > a and ranked[a - 1].score == ranked[a].score:
+        boundary = ranked[a - 1].score
+        return [rp for rp in ranked if rp.score == boundary]
+    return []
 
 
 def show_question(db: Session):
