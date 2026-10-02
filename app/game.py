@@ -840,9 +840,9 @@ def serial_commands_for_phase():
             cmds.append(block_cmd)
         return cmds
     if phase == "idle":
-        cmds = ["5"]
-        if block_cmd:
-            cmds.append(block_cmd)
+        # "9" on every idle (round start, hide, skip, finish) lifts the
+        # off-mask too, so buzzers fade back to green right away
+        cmds = ["5", block_cmd or "9"]
         if off_cmd:
             cmds.append(off_cmd)
         return cmds

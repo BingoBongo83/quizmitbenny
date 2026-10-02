@@ -407,6 +407,9 @@ res, _ = game.pick_answer(db, q.correct)   # slot1: 8 pts -> clear winner
 q, err = game.show_question(db)            # now truly decided
 assert q is None and "Limit" in err
 assert not game.get_state()["tiebreak_slots"]
+game.finish_round(db, r1.id)
+# idle (round end / next round start) clears the off-mask -> all green again
+assert game.serial_commands_for_phase() == ["5", "9"]
 print("OK Stichfrage: Gleichstand an Grenze + Platz 1, dann beenden")
 
 # --- Stichfrage im Finale: Gleichstand um den Sieg ---
