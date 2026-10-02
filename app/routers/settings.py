@@ -40,6 +40,10 @@ class SettingsBody(BaseModel):
     answer_lockin: bool | None = None
     max_questions_enabled: bool | None = None
     max_questions: int | None = None
+    max_questions_preround: int | None = None
+    max_questions_playoff: int | None = None
+    max_questions_semifinal: int | None = None
+    max_questions_final: int | None = None
     skills_preround: list[int] | None = None
     skills_playoff: list[int] | None = None
     skills_semifinal: list[int] | None = None
@@ -125,6 +129,10 @@ def update_settings(body: SettingsBody):
             raise HTTPException(400, "Ungültiges Sound-Ziel")
         if "max_questions" in data and not 1 <= data["max_questions"] <= 200:
             raise HTTPException(400, "Max. Fragen muss 1-200 sein")
+        for k in ("max_questions_preround", "max_questions_playoff",
+                  "max_questions_semifinal", "max_questions_final"):
+            if k in data and not 1 <= data[k] <= 200:
+                raise HTTPException(400, "Max. Fragen muss 1-200 sein")
         if "seat_colors" in data:
             import re
             if not data["seat_colors"] or not all(

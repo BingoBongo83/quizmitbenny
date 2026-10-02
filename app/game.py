@@ -498,11 +498,16 @@ def questions_asked(db: Session, round_id: int) -> int:
     return n
 
 
-def max_questions(db: Session) -> int | None:
-    """Configured per-round question cap, or None when disabled."""
-    if get_setting(db, "max_questions_enabled"):
-        return get_setting(db, "max_questions") or 20
-    return None
+def max_questions(db: Session, rnd: Round | None = None) -> int | None:
+    """Question cap for this round's stage, or None when the feature is off.
+    Per-stage setting falls back to the global max_questions value."""
+    if not get_setting(db, "max_questions_enabled"):
+        return None
+    base = get_setting(db, "max_questions") or 20
+    if rnd is None:
+        return base
+    stage = "playoff" if rnd.type.startswith("playoff") else rnd.type
+    return get_setting(db, f"max_questions_{stage}") or base
 
 
 def _advance_count(db: Session, rnd: Round) -> int:
@@ -547,7 +552,7 @@ def eval_tiebreak(db: Session) -> None:
         if not rnd or rnd.status != "active":
             _state["tiebreak_slots"] = None
             return
-        cap = max_questions(db)
+        cap = max_questions(db, rnd)
         tied = (cap and questions_asked(db, rnd.id) >= cap
                 and tiebreak_players(db, rnd)) or []
         new = [rp.slot for rp in tied] or None
@@ -560,7 +565,7 @@ def show_question(db: Session):
     """Moderator: show next question on the board and arm buzzers."""
     with _lock:
         rnd = db.get(Round, _state["round_id"]) if _state["round_id"] else None
-        cap = max_questions(db)
+        cap = max_questions(db, rnd)
         _state["tiebreak_slots"] = None
         if rnd and cap and questions_asked(db, rnd.id) >= cap:
             tied = tiebreak_players(db, rnd)
@@ -928,7 +933,7 @@ def board_state(db: Session) -> dict:
             "question_pool": rnd.question_pool or "standard",
             "pool_label": pool_label,
             "questions_asked": questions_asked(db, rnd.id),
-            "questions_max": max_questions(db),
+            "questions_max": max_questions(db, rnd),
             "tiebreak": bool(_state.get("tiebreak_slots")),
             "tiebreak_slots": _state.get("tiebreak_slots") or [],
         } if rnd else None,

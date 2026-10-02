@@ -86,10 +86,17 @@
     <label class="field"><input type="checkbox" id="s_lockin" checked> Antwort einloggen (erster Klick = Einloggen, zweiter = Auflösung)</label>
     <p class="muted" style="margin:-4px 0 8px">Nach Publikumsjoker wird die Antwort immer eingeloggt.</p>
     <label class="field"><input type="checkbox" id="s_maxq_on"> Max. Fragen pro Runde</label>
-    <div class="player-row">
-      <input type="number" id="s_maxq" min="1" max="200" value="20" style="max-width:100px">
-      <span class="muted">Fragen – bei Erreichen ist „Frage zeigen“ gesperrt, Runde manuell beenden</span>
+    <div class="player-row" id="s_maxqRow" style="gap:14px;flex-wrap:wrap">
+      <label class="field" style="margin:0">Vorrunde<br>
+        <input type="number" id="s_maxq_preround" min="1" max="200" value="20" style="max-width:80px"></label>
+      <label class="field" style="margin:0">Playoff<br>
+        <input type="number" id="s_maxq_playoff" min="1" max="200" value="20" style="max-width:80px"></label>
+      <label class="field" style="margin:0">Halbfinale<br>
+        <input type="number" id="s_maxq_semifinal" min="1" max="200" value="20" style="max-width:80px"></label>
+      <label class="field" style="margin:0">Finale<br>
+        <input type="number" id="s_maxq_final" min="1" max="200" value="20" style="max-width:80px"></label>
     </div>
+    <p class="muted" style="margin:-4px 0 8px">Bei Erreichen ist „Frage zeigen“ gesperrt (bei Gleichstand läuft eine Stichfrage), Runde manuell beenden.</p>
     <label class="field">Sound-Ausgabe</label>
     <select id="s_sound">
       <option value="board">Scoreboard</option>
@@ -234,5 +241,5 @@
   </div>
 </div>
 
-<script src="/static/js/settings.js?v=12"></script>
+<script src="/static/js/settings.js?v=13"></script>
 {% endblock %}

@@ -149,6 +149,11 @@ DEFAULT_SETTINGS = {
     # per-round question cap: moderator must finish the round when reached
     "max_questions_enabled": False,
     "max_questions": 20,
+    # per-stage overrides; None = use global max_questions
+    "max_questions_preround": None,
+    "max_questions_playoff": None,
+    "max_questions_semifinal": None,
+    "max_questions_final": None,
     "skills_preround": [1, 2, 3],
     "skills_playoff": [3, 4],
     "skills_semifinal": [3, 4, 5],

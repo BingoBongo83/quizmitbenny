@@ -430,6 +430,12 @@ while True:
     game.finish_round(db, r.id)
 fin = db.query(Round).filter(Round.type == "final").first()
 assert fin
+# per-stage question cap: override + fallback to the global value
+set_setting(db, "max_questions_final", 5)
+assert game.max_questions(db, fin) == 5
+assert game.max_questions(db, r1) == 1          # preround keeps global cap
+set_setting(db, "max_questions_final", None)
+assert game.max_questions(db, fin) == 1
 db.query(Question).update({Question.used: False})
 game.start_round(db, fin.id)
 # last two finalists tied at the top -> Stichfrage for the win
