@@ -149,12 +149,18 @@ function render(state) {
   const idle = document.getElementById("idleBox");
   const crawl = document.getElementById("crawl");
   const waiting = !state.game_started || !!state.quiz_waiting;
-  if (waiting && crawl.classList.contains("hidden")) {
+  const showCrawl = waiting && !state.question;
+  const wasHidden = crawl.classList.contains("hidden");
+  crawl.classList.toggle("hidden", !showCrawl);
+  if (showCrawl && wasHidden) {
     // restart the scroll from the beginning each time it appears
     const t = crawl.querySelector(".crawl-text");
+    // travel = own height + ~6 viewports (start offset + recede past the
+    // horizon until invisible); duration keeps a constant ~3.5vh/s speed
+    const travelPx = t.offsetHeight + 6 * window.innerHeight;
     t.style.animation = "none"; void t.offsetHeight; t.style.animation = "";
+    t.style.animationDuration = Math.round(travelPx / (0.035 * window.innerHeight)) + "s";
   }
-  crawl.classList.toggle("hidden", !waiting || !!state.question);
   document.querySelector(".board").classList.toggle("idle-mode", !state.question);
   if (state.question) {
     qbox.classList.remove("hidden");
