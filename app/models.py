@@ -139,6 +139,10 @@ DEFAULT_SETTINGS = {
     "points_wrong_others": 2,
     "block_on_wrong": True,
     "sound_target": "board",  # board | admin | both
+    # answer reveal on the board: all at once or one after another
+    "answer_reveal": "all",  # all | seq
+    "reveal_delay": 0,       # seconds before the first answer appears
+    "reveal_pause": 2,       # seconds between answers when 'seq'
     # seat (slot) colors — bound to the physical buzzer position, not players
     "seat_colors": ["#2e6bff", "#ffd23c", "#ff8c1a", "#ff5ec4", "#2ee56f"],
     "joker_fifty": True,

@@ -111,6 +111,15 @@
           <option value="admin">Moderator</option>
           <option value="both">Beide</option>
         </select>
+        <label class="field">Antworten einblenden (Scoreboard)</label>
+        <select id="s_reveal">
+          <option value="all">Alle gleichzeitig</option>
+          <option value="seq">Nacheinander</option>
+        </select>
+        <label class="field">Pause vor erster Antwort (Sekunden)</label>
+        <input type="number" id="s_reveal_delay" min="0" max="15" step="0.5" value="0">
+        <label class="field">Pause zwischen Antworten (Sekunden)</label>
+        <input type="number" id="s_reveal_pause" min="0.5" max="15" step="0.5" value="2">
         <h3 class="field" style="margin-top:14px">Joker</h3>
         <p class="muted" style="margin-bottom:8px">Jeder Spieler hat jeden Joker 1× pro Spiel (Finalisten erhalten neue). Wird vom Moderator für den gebuzzerten Spieler aktiviert.</p>
         <label class="field"><input type="checkbox" id="s_jfifty" checked> 50:50 (zwei falsche Antworten verschwinden)</label>
@@ -170,10 +179,11 @@
       <button id="qSeedBtn">OpenTriviaDB importieren (+Übersetzung)</button>
       <input type="file" id="qImport" accept=".json,.csv" style="display:none">
       <button onclick="document.getElementById('qImport').click()">CSV/JSON importieren</button>
+      <button onclick="openModal('m-export')">Exportieren</button>
       <button class="danger" id="resetUsed">Genutzte zurücksetzen</button>
     </div>
     <div class="player-row">
-      <input type="text" id="nq_text" placeholder="Fragetext" style="flex:1 1 100%">
+      <textarea id="nq_text" class="autota" rows="1" placeholder="Fragetext"></textarea>
     </div>
     <div class="player-row">
       <input type="text" id="nq_a1" placeholder="Antwort 1 (richtig)">
@@ -182,7 +192,6 @@
       <input type="text" id="nq_a4" placeholder="Antwort 4">
       <select id="nq_skill"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
       <button id="nq_add">+</button>
-      <button id="nq_cancel" class="hidden">Abbrechen</button>
     </div>
     <table class="list" id="questionTable"></table>
     <div class="btnrow" id="qPager" style="align-items:center"></div>
@@ -204,11 +213,14 @@
     <div id="catDetail" class="hidden" style="margin-top:14px">
       <h3 id="catDetailName"></h3>
       <div class="btnrow" style="margin-bottom:10px">
+        <input type="text" id="cqSearch" placeholder="Suche …">
+        <select id="cqSkillFilter"><option value="">alle Skills</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
         <input type="file" id="cqImport" accept=".json,.csv" style="display:none">
         <button onclick="document.getElementById('cqImport').click()">CSV/JSON importieren</button>
+        <button id="cqExport">Exportieren</button>
       </div>
       <div class="player-row">
-        <input type="text" id="cq_text" placeholder="Fragetext" style="flex:1 1 100%">
+        <textarea id="cq_text" class="autota" rows="1" placeholder="Fragetext"></textarea>
       </div>
       <div class="player-row">
         <input type="text" id="cq_a1" placeholder="Antwort 1 (richtig)">
@@ -219,6 +231,7 @@
         <button id="cq_add">+</button>
       </div>
       <table class="list" id="cqTable"></table>
+      <div class="btnrow" id="cqPager" style="align-items:center"></div>
     </div>
     <div class="modal-foot">
       <button class="modalClose">Schließen</button>
@@ -230,24 +243,59 @@
   <div class="modal wide">
     <h2>Gemeldete Fragen</h2>
     <p class="muted" style="margin-bottom:10px">Vom Moderator gemeldete Fragen sind aus allen Pools genommen. Bearbeiten, dann aktivieren – oder löschen.</p>
-    <div id="rqEditForm" class="hidden" style="margin-bottom:12px">
-      <div class="player-row">
-        <input type="text" id="rq_text" placeholder="Fragetext" style="flex:1 1 100%">
-      </div>
-      <div class="player-row">
-        <input type="text" id="rq_a1" placeholder="Antwort 1 (richtig)">
-        <input type="text" id="rq_a2" placeholder="Antwort 2">
-        <input type="text" id="rq_a3" placeholder="Antwort 3">
-        <input type="text" id="rq_a4" placeholder="Antwort 4">
-        <select id="rq_skill"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
-        <button class="primary" id="rq_save">Speichern</button>
-        <button id="rq_cancel">Abbrechen</button>
-      </div>
-    </div>
     <table class="list" id="reportedTable"></table>
     <div class="btnrow" id="rqPager" style="align-items:center"></div>
     <div class="modal-foot">
       <button class="modalClose">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="m-export" style="z-index:200">
+  <div class="modal">
+    <h2>Fragen exportieren</h2>
+    <label class="field">Format</label>
+    <div class="btnrow" style="margin-top:0">
+      <label><input type="radio" name="exp_fmt" value="json" checked> JSON</label>
+      <label><input type="radio" name="exp_fmt" value="csv"> CSV</label>
+    </div>
+    <label class="field">Skill</label>
+    <select id="exp_skill"><option value="">alle</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+    <label class="field">Kategorien <span class="muted">(nichts angehakt = alle)</span></label>
+    <div id="expCats" style="max-height:38vh;overflow-y:auto"></div>
+    <div class="modal-foot">
+      <button class="primary" id="expGo">Exportieren</button>
+      <button class="modalClose">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="m-qedit" style="z-index:200">
+  <div class="modal">
+    <h2 id="qe_title">Frage bearbeiten</h2>
+    <textarea id="qe_text" class="autota" rows="1" placeholder="Fragetext"></textarea>
+    <label class="field">Antworten – Häkchen = richtige Antwort</label>
+    <div class="qe-ans">
+      <input type="text" id="qe_a1" placeholder="Antwort 1">
+      <input type="radio" name="qe_correct" value="1" title="richtige Antwort">
+    </div>
+    <div class="qe-ans">
+      <input type="text" id="qe_a2" placeholder="Antwort 2">
+      <input type="radio" name="qe_correct" value="2" title="richtige Antwort">
+    </div>
+    <div class="qe-ans">
+      <input type="text" id="qe_a3" placeholder="Antwort 3">
+      <input type="radio" name="qe_correct" value="3" title="richtige Antwort">
+    </div>
+    <div class="qe-ans">
+      <input type="text" id="qe_a4" placeholder="Antwort 4">
+      <input type="radio" name="qe_correct" value="4" title="richtige Antwort">
+    </div>
+    <label class="field">Schwierigkeit</label>
+    <select id="qe_skill"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+    <div class="modal-foot">
+      <button class="primary" id="qe_save">Speichern</button>
+      <button id="qe_cancel">Abbrechen</button>
     </div>
   </div>
 </div>
@@ -260,5 +308,5 @@
 </div>
 
 <script src="/static/js/dlg.js?v=1"></script>
-<script src="/static/js/settings.js?v=15"></script>
+<script src="/static/js/settings.js?v=19"></script>
 {% endblock %}

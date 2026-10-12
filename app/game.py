@@ -13,6 +13,7 @@ Advancement rule (musikquiz style):
 import json
 import random
 import threading
+import time
 
 from sqlalchemy.orm import Session
 
@@ -63,6 +64,7 @@ _state = {
     "audience_pick": None,  # majority answer (1-4) after stop
     "locked_answer": None,  # moderator's first click = lock-in, second = judge
     "tiebreak_slots": None,  # Stichfrage: only these slots may buzz (None = all)
+    "question_shown_at": None,  # unix ts when current question went on the board
 }
 
 _subscribers = []  # ws connection manager is injected
@@ -590,6 +592,7 @@ def show_question(db: Session):
             "phase": "question",
             "question_id": q.id,
             "question_source": src,
+            "question_shown_at": time.time(),
             "pending_question_id": None,
             "pending_source": None,
             "buzzed_slot": None,
@@ -623,15 +626,20 @@ def skip_question(db: Session):
         _persist_state(db)
 
 
-def report_question(db: Session, which: str = "current"):
+def report_question(db: Session, which: str = "current", qid: int | None = None):
     """Moderator flags a question as broken -> excluded from all pools.
     'current': the shown question is reported and hidden (no scoring).
-    'next': the previewed pending question is reported and re-picked."""
+    'next': the previewed pending question is reported and re-picked.
+    qid pins the report to the question the moderator actually saw –
+    if it no longer matches (state moved on in the meantime) we refuse
+    instead of flagging a different question."""
     with _lock:
         if which == "next":
-            qid = _state["pending_question_id"]
-            if not qid:
+            if not _state["pending_question_id"]:
                 return False, "Keine Vorschau-Frage"
+            if qid is not None and _state["pending_question_id"] != qid:
+                return False, "Vorschau hat sich geändert – bitte neu versuchen"
+            qid = _state["pending_question_id"]
             q = db.get(_model_for(_state.get("pending_source") or "q"), qid)
             if q:
                 q.reported = True
@@ -644,6 +652,8 @@ def report_question(db: Session, which: str = "current"):
             return True, None
         if not _state["question_id"]:
             return False, "Keine aktive Frage"
+        if qid is not None and _state["question_id"] != qid:
+            return False, "Aktive Frage hat sich geändert – bitte neu versuchen"
         q = db.get(_model_for(_state.get("question_source") or "q"),
                    _state["question_id"])
         if q:
@@ -810,7 +820,8 @@ def unshow_question(db: Session):
     """Hide the current question, keep scores (back to idle)."""
     with _lock:
         _state.update({
-            "phase": "idle", "question_source": None, "buzzed_slot": None,
+            "phase": "idle", "question_id": None, "question_source": None,
+            "buzzed_slot": None,
             "picked_answer": None, "correct_answer": None,
             "fifty_hidden": [], "double_active": False,
             "audience_voting": False, "audience_votes": {},
@@ -953,6 +964,11 @@ def board_state(db: Session) -> dict:
             if get_setting(db, f"joker_{k}")],
         "sound_target": get_setting(db, "sound_target", "board"),
         "seat_colors": get_setting(db, "seat_colors"),
+        "answer_reveal": get_setting(db, "answer_reveal", "all"),
+        "reveal_delay": get_setting(db, "reveal_delay", 0),
+        "reveal_pause": get_setting(db, "reveal_pause", 2),
+        "question_shown_at": _state["question_shown_at"],
+        "server_now": time.time(),
     }
 
 

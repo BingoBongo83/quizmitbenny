@@ -240,8 +240,8 @@ function render(st) {
     const rn = document.getElementById("reportNext");
     if (rn) rn.onclick = async (e) => {
       e.preventDefault();
-      if (await Dlg.confirm("Vorschau-Frage melden und aus dem Pool nehmen?"))
-        post("/api/game/question/report", { which: "next" });
+      if (await Dlg.confirm(`Vorschau-Frage melden und aus dem Pool nehmen?\n\n„${st.next_question.text}“`))
+        post("/api/game/question/report", { which: "next", qid: st.next_question.id });
     };
   } else {
     nq.textContent = "";
@@ -335,8 +335,10 @@ document.getElementById("btnShow").onclick = () => post("/api/game/question/show
 document.getElementById("btnSkip").onclick = () => post("/api/game/question/skip");
 document.getElementById("btnHide").onclick = () => post("/api/game/question/hide");
 document.getElementById("btnReport").onclick = async () => {
-  if (await Dlg.confirm("Frage als fehlerhaft melden? Sie wird aus allen Pools genommen und ist in Einstellungen → Gemeldete Fragen sichtbar."))
-    post("/api/game/question/report", { which: "current" });
+  const q = lastState && lastState.question;
+  if (!q) return;
+  if (await Dlg.confirm(`Frage als fehlerhaft melden? Sie wird aus allen Pools genommen und ist in Einstellungen → Gemeldete Fragen sichtbar.\n\n„${q.text}“`))
+    post("/api/game/question/report", { which: "current", qid: q.id });
 };
 document.getElementById("btnFinish").onclick = async () => {
   if (lastState && lastState.round && await Dlg.confirm("Runde wirklich beenden?"))

@@ -16,6 +16,20 @@ const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// auto-growing textareas (question fields): expand up to max-height, then scroll
+const taGrow = (el) => {
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+};
+document.querySelectorAll("textarea.autota").forEach((ta) =>
+  ta.addEventListener("input", () => taGrow(ta)));
+
+// debounce for live-search inputs
+const debounce = (fn, ms = 250) => {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+};
+
 const SKILL_SETS = [
   ["skills_preround", "Vorrunde"],
   ["skills_playoff", "Playoff"],
@@ -40,6 +54,7 @@ const MODAL_REFRESH = {
   "m-questions": () => loadQuestions(),
   "m-cats": () => loadCategories(),
   "m-reported": () => loadReported(),
+  "m-export": () => loadExportCats(),
 };
 function openModal(id) {
   document.getElementById(id).classList.remove("hidden");
@@ -56,14 +71,71 @@ document.querySelectorAll(".modal-overlay").forEach((ov) =>
     if (e.target === ov) ov.classList.add("hidden");
   }));
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape")
-    document.querySelectorAll(".modal-overlay").forEach((o) => o.classList.add("hidden"));
+  if (e.key === "Escape") {
+    // close only the topmost open overlay (DOM order = stacking order)
+    const open = [...document.querySelectorAll(".modal-overlay:not(.hidden)")];
+    if (open.length) open[open.length - 1].classList.add("hidden");
+  }
 });
 document.querySelectorAll(".modalClose").forEach((b) => (b.onclick = () => closeModal(b)));
 document.querySelectorAll(".modalCancel").forEach((b) => (b.onclick = () => {
   closeModal(b);
   loadSettings().catch(() => {});  // discard unsaved form edits
 }));
+
+// ---------------- shared question editor modal ----------------
+// ctx: {kind:'q'|'c'|'r', id, catId, source, category}
+let qeCtx = null;
+
+function openQuestionEditor(x, ctx) {
+  qeCtx = ctx;
+  document.getElementById("qe_text").value = x.text;
+  x.answers.forEach((a, i) => {
+    document.getElementById(`qe_a${i + 1}`).value = a;
+  });
+  const r = document.querySelector(
+    `input[name="qe_correct"][value="${x.correct}"]`);
+  if (r) r.checked = true;
+  document.getElementById("qe_skill").value = x.skill;
+  document.getElementById("m-qedit").classList.remove("hidden");
+  const ta = document.getElementById("qe_text");
+  taGrow(ta);  // needs a visible element for correct scrollHeight
+  ta.focus();
+}
+
+function closeQuestionEditor() {
+  qeCtx = null;
+  document.getElementById("m-qedit").classList.add("hidden");
+}
+document.getElementById("qe_cancel").onclick = closeQuestionEditor;
+
+document.getElementById("qe_save").onclick = async () => {
+  if (!qeCtx) return;
+  const checked = document.querySelector('input[name="qe_correct"]:checked');
+  const body = {
+    text: document.getElementById("qe_text").value.trim(),
+    answer1: document.getElementById("qe_a1").value,
+    answer2: document.getElementById("qe_a2").value,
+    answer3: document.getElementById("qe_a3").value,
+    answer4: document.getElementById("qe_a4").value,
+    correct: checked ? +checked.value : 1,
+    skill: +document.getElementById("qe_skill").value,
+  };
+  if (!body.text || !body.answer1 || !body.answer2 || !body.answer3 || !body.answer4)
+    return Dlg.alert("Frage + alle Antworten ausfüllen");
+  const { kind, id, catId, source, category } = qeCtx;
+  const custom = kind === "c" || (kind === "r" && source === "c");
+  if (custom) {
+    await api(`/api/categories/${catId}/questions/${id}`, "PUT", body);
+  } else {
+    body.category = category || "";
+    await api(`/api/questions/${id}`, "PUT", body);
+  }
+  closeQuestionEditor();
+  if (kind === "r") loadReported();
+  else if (custom) { loadCustomQuestions(); loadCategories(); }
+  else loadQuestions();
+};
 
 let players = [];
 let settings = {};
@@ -157,6 +229,12 @@ async function loadSettings() {
     el.disabled = !settings.max_questions_enabled;
   });
   document.getElementById("s_sound").value = settings.sound_target || "board";
+  const reveal = settings.answer_reveal || "all";
+  document.getElementById("s_reveal").value = reveal;
+  document.getElementById("s_reveal_delay").value = settings.reveal_delay ?? 0;
+  const rp = document.getElementById("s_reveal_pause");
+  rp.value = settings.reveal_pause ?? 2;
+  rp.disabled = reveal !== "seq";
   document.getElementById("s_jfifty").checked = settings.joker_fifty !== false;
   document.getElementById("s_jdouble").checked = settings.joker_double !== false;
   document.getElementById("s_jaudience").checked = settings.joker_audience !== false;
@@ -208,6 +286,9 @@ async function saveAllSettings(btn) {
     answer_lockin: document.getElementById("s_lockin").checked,
     max_questions_enabled: document.getElementById("s_maxq_on").checked,
     sound_target: document.getElementById("s_sound").value,
+    answer_reveal: document.getElementById("s_reveal").value,
+    reveal_delay: +document.getElementById("s_reveal_delay").value || 0,
+    reveal_pause: +document.getElementById("s_reveal_pause").value || 2,
     ...Object.fromEntries(MAXQ_STAGES.map((s) => [
       "max_questions_" + s,
       +document.getElementById("s_maxq_" + s).value || 20,
@@ -261,7 +342,8 @@ document.getElementById("resetGame").onclick = async () => {
 // ---------------- categories + custom questions ----------------
 let categories = [];
 let activeCat = null;
-let editQid = null;
+const CQ_PAGE_SIZE = 10;
+let cqPage = 0;
 
 async function loadCategories() {
   categories = await api("/api/categories");
@@ -301,26 +383,43 @@ document.getElementById("addCat").onclick = async () => {
 
 async function openCategory(cid, name) {
   activeCat = cid;
-  editQid = null;
+  cqPage = 0;
+  document.getElementById("cqSearch").value = "";
+  document.getElementById("cqSkillFilter").value = "";
   document.getElementById("catDetail").classList.remove("hidden");
   document.getElementById("catDetailName").textContent = `Fragen in „${name}“`;
-  document.getElementById("cq_add").textContent = "+";
   loadCustomQuestions();
 }
 
 async function loadCustomQuestions() {
   if (!activeCat) return;
-  const qs = await api(`/api/categories/${activeCat}/questions`);
+  const all = await api(`/api/categories/${activeCat}/questions`);
+  const term = document.getElementById("cqSearch").value.trim().toLowerCase();
+  const skill = +document.getElementById("cqSkillFilter").value || 0;
+  const qs = all.filter((x) =>
+    (!term || x.text.toLowerCase().includes(term)) &&
+    (!skill || x.skill === skill));
+  window._cqs = qs;
+  const pages = Math.max(1, Math.ceil(qs.length / CQ_PAGE_SIZE));
+  if (cqPage >= pages) cqPage = pages - 1;
+  const page = qs.slice(cqPage * CQ_PAGE_SIZE, (cqPage + 1) * CQ_PAGE_SIZE);
   document.getElementById("cqTable").innerHTML =
     `<tr><th>Frage</th><th>Skill</th><th>✓</th><th></th></tr>` +
-    qs.map((x) => `<tr>
+    (page.map((x) => `<tr>
       <td>${esc(x.text)}</td><td>${x.skill}</td>
       <td>${"ABCD"[x.correct - 1]}</td>
       <td>
         <button class="cqedit" data-qid="${x.id}">edit</button>
         <button class="cqdel danger" data-qid="${x.id}">×</button>
-      </td></tr>`).join("") || '<tr><td class="muted">Keine Fragen</td></tr>';
-  window._cqs = qs;
+      </td></tr>`).join("") || '<tr><td class="muted">Keine Fragen</td></tr>');
+  document.getElementById("cqPager").innerHTML = qs.length > CQ_PAGE_SIZE
+    ? `<button id="cqPrev" ${cqPage === 0 ? "disabled" : ""}>◀</button>
+       <span class="muted">Seite ${cqPage + 1} / ${pages} (${qs.length} Fragen)</span>
+       <button id="cqNext" ${cqPage >= pages - 1 ? "disabled" : ""}>▶</button>`
+    : `<span class="muted">${qs.length} Fragen</span>`;
+  const prev = document.getElementById("cqPrev"), next = document.getElementById("cqNext");
+  if (prev) prev.onclick = () => { cqPage--; loadCustomQuestions(); };
+  if (next) next.onclick = () => { cqPage++; loadCustomQuestions(); };
   document.querySelectorAll(".cqdel").forEach((b) => (b.onclick = async () => {
     if (await Dlg.confirm("Frage löschen?")) {
       await api(`/api/categories/${activeCat}/questions/${b.dataset.qid}`, "DELETE");
@@ -329,17 +428,7 @@ async function loadCustomQuestions() {
   }));
   document.querySelectorAll(".cqedit").forEach((b) => (b.onclick = () => {
     const q = window._cqs.find((x) => x.id === +b.dataset.qid);
-    if (!q) return;
-    cq_text.value = q.text;
-    // correct answer goes into field 1 (matches the "(richtig)" label)
-    const correct = q.answers[q.correct - 1];
-    const wrong = q.answers.filter((_, i) => i !== q.correct - 1);
-    [cq_a1, cq_a2, cq_a3, cq_a4].forEach((el, i) =>
-      (el.value = i === 0 ? correct : wrong[i - 1] ?? ""));
-    cq_skill.value = q.skill;
-    editQid = q.id;
-    document.getElementById("cq_add").textContent = "Speichern";
-    cq_text.focus();
+    if (q) openQuestionEditor(q, { kind: "c", id: q.id, catId: activeCat });
   }));
 }
 
@@ -350,14 +439,9 @@ document.getElementById("cq_add").onclick = async () => {
     correct: 1, skill: +cq_skill.value,
   };
   if (!body.text || !body.answer1) return Dlg.alert("Frage + Antworten ausfüllen");
-  if (editQid) {
-    await api(`/api/categories/${activeCat}/questions/${editQid}`, "PUT", body);
-    editQid = null;
-    document.getElementById("cq_add").textContent = "+";
-  } else {
-    await api(`/api/categories/${activeCat}/questions`, "POST", body);
-  }
+  await api(`/api/categories/${activeCat}/questions`, "POST", body);
   ["cq_text", "cq_a1", "cq_a2", "cq_a3", "cq_a4"].forEach((id) => (document.getElementById(id).value = ""));
+  taGrow(document.getElementById("cq_text"));
   loadCustomQuestions(); loadCategories();
 };
 
@@ -408,7 +492,6 @@ async function loadRounds() {
 const Q_PAGE_SIZE = 10;
 let qPage = 0;
 let qTotal = 0;
-let nqEditId = null;
 
 async function loadQuestions() {
   const params = new URLSearchParams();
@@ -438,18 +521,7 @@ async function loadQuestions() {
   }));
   document.querySelectorAll(".qedit").forEach((b) => (b.onclick = () => {
     const x = window._qs.find((v) => v.id === +b.dataset.qid);
-    if (!x) return;
-    nq_text.value = x.text;
-    // correct answer goes into field 1 (matches the "(richtig)" label)
-    const correct = x.answers[x.correct - 1];
-    const wrong = x.answers.filter((_, i) => i !== x.correct - 1);
-    [nq_a1, nq_a2, nq_a3, nq_a4].forEach((el, i) =>
-      (el.value = i === 0 ? correct : wrong[i - 1] ?? ""));
-    nq_skill.value = x.skill;
-    nqEditId = x.id;
-    document.getElementById("nq_add").textContent = "Speichern";
-    document.getElementById("nq_cancel").classList.remove("hidden");
-    nq_text.focus();
+    if (x) openQuestionEditor(x, { kind: "q", id: x.id, category: x.category });
   }));
   const pages = Math.max(1, Math.ceil(qTotal / Q_PAGE_SIZE));
   document.getElementById("qPager").innerHTML = qTotal > Q_PAGE_SIZE
@@ -463,10 +535,16 @@ async function loadQuestions() {
 }
 
 document.getElementById("qSearchBtn").onclick = () => { qPage = 0; loadQuestions(); };
+document.getElementById("qSearch").addEventListener("input",
+  debounce(() => { qPage = 0; loadQuestions(); }));
+document.getElementById("qSkillFilter").onchange = () => { qPage = 0; loadQuestions(); };
+document.getElementById("cqSearch").addEventListener("input",
+  debounce(() => { cqPage = 0; loadCustomQuestions(); }));
+document.getElementById("cqSkillFilter").onchange =
+  () => { cqPage = 0; loadCustomQuestions(); };
 
 // ---------------- reported questions ----------------
-let rqEdit = null;  // {source: 'q'|'c', id, category_id}
-const RQ_PAGE_SIZE = 8;
+const RQ_PAGE_SIZE = 10;
 let rqPage = 0;
 
 async function loadReported() {
@@ -498,8 +576,6 @@ async function loadReported() {
   if (rqNext) rqNext.onclick = () => { rqPage++; loadReported(); };
   document.querySelectorAll(".rqreact").forEach((b) => (b.onclick = async () => {
     await api(`/api/questions/reported/${b.dataset.src}/${b.dataset.qid}/reactivate`, "POST");
-    rqEdit = null;
-    document.getElementById("rqEditForm").classList.add("hidden");
     loadReported();
   }));
   document.querySelectorAll(".rqdel").forEach((b) => (b.onclick = async () => {
@@ -512,50 +588,13 @@ async function loadReported() {
   }));
   document.querySelectorAll(".rqedit").forEach((b) => (b.onclick = () => {
     const x = window._rqs[+b.dataset.i];
-    rqEdit = { source: x.source, id: x.id, category_id: x.category_id,
-               category: x.category || "" };
-    document.getElementById("rqEditForm").classList.remove("hidden");
-    document.getElementById("rq_text").value = x.text;
-    const correct = x.answers[x.correct - 1];
-    const wrong = x.answers.filter((_, i) => i !== x.correct - 1);
-    ["rq_a1", "rq_a2", "rq_a3", "rq_a4"].forEach((id, i) =>
-      (document.getElementById(id).value = i === 0 ? correct : wrong[i - 1] ?? ""));
-    document.getElementById("rq_skill").value = x.skill;
-    document.getElementById("rq_text").focus();
+    if (x) openQuestionEditor(x, {
+      kind: "r", id: x.id, source: x.source,
+      catId: x.category_id, category: x.category || "",
+    });
   }));
 }
 
-document.getElementById("rq_save").onclick = async () => {
-  if (!rqEdit) return;
-  const body = {
-    text: document.getElementById("rq_text").value,
-    answer1: document.getElementById("rq_a1").value,
-    answer2: document.getElementById("rq_a2").value,
-    answer3: document.getElementById("rq_a3").value,
-    answer4: document.getElementById("rq_a4").value,
-    correct: 1, skill: +document.getElementById("rq_skill").value,
-  };
-  if (!body.text || !body.answer1) return Dlg.alert("Frage + Antworten ausfüllen");
-  if (rqEdit.source === "c") {
-    await api(`/api/categories/${rqEdit.category_id}/questions/${rqEdit.id}`, "PUT", body);
-  } else {
-    body.category = rqEdit.category;
-    await api(`/api/questions/${rqEdit.id}`, "PUT", body);
-  }
-  rqEdit = null;
-  document.getElementById("rqEditForm").classList.add("hidden");
-  loadReported();
-};
-document.getElementById("rq_cancel").onclick = () => {
-  rqEdit = null;
-  document.getElementById("rqEditForm").classList.add("hidden");
-};
-document.getElementById("nq_cancel").onclick = () => {
-  nqEditId = null;
-  document.getElementById("nq_add").textContent = "+";
-  document.getElementById("nq_cancel").classList.add("hidden");
-  ["nq_text", "nq_a1", "nq_a2", "nq_a3", "nq_a4"].forEach((id) => (document.getElementById(id).value = ""));
-};
 document.getElementById("nq_add").onclick = async () => {
   const body = {
     text: nq_text.value, answer1: nq_a1.value, answer2: nq_a2.value,
@@ -563,14 +602,46 @@ document.getElementById("nq_add").onclick = async () => {
     skill: +nq_skill.value,
   };
   if (!body.text || !body.answer1) return Dlg.alert("Frage + Antworten ausfüllen");
-  if (nqEditId) {
-    await api(`/api/questions/${nqEditId}`, "PUT", body);
-    document.getElementById("nq_cancel").onclick();
-  } else {
-    await api("/api/questions", "POST", body);
-    ["nq_text", "nq_a1", "nq_a2", "nq_a3", "nq_a4"].forEach((id) => (document.getElementById(id).value = ""));
-  }
+  await api("/api/questions", "POST", body);
+  ["nq_text", "nq_a1", "nq_a2", "nq_a3", "nq_a4"].forEach((id) => (document.getElementById(id).value = ""));
+  taGrow(document.getElementById("nq_text"));
   loadQuestions();
+};
+
+// ---------------- question export ----------------
+let expPrecheck = null;  // category value to pre-tick when the dialog opens
+
+async function loadExportCats() {
+  const [stdCats, cats] = await Promise.all([
+    api("/api/questions/categories"), api("/api/categories")]);
+  const row = (val, label) =>
+    `<label class="field" style="margin:4px 0"><input type="checkbox" class="expCat" value="${esc(val)}"> ${esc(label)}</label>`;
+  const el = document.getElementById("expCats");
+  el.innerHTML =
+    stdCats.map((c) => row(`std:${c}`, c)).join("") +
+    cats.map((c) => row(`cat:${c.id}`, `Kategorie: ${c.name}`)).join("") ||
+    '<span class="muted">Keine Kategorien</span>';
+  if (expPrecheck) {
+    const cb = el.querySelector(`.expCat[value="${expPrecheck}"]`);
+    if (cb) cb.checked = true;
+    expPrecheck = null;
+  }
+}
+
+document.getElementById("cqExport").onclick = () => {
+  if (activeCat) expPrecheck = `cat:${activeCat}`;
+  openModal("m-export");
+};
+
+document.getElementById("expGo").onclick = () => {
+  const params = new URLSearchParams();
+  params.set("format",
+    document.querySelector('input[name="exp_fmt"]:checked').value);
+  const skill = document.getElementById("exp_skill").value;
+  if (skill) params.set("skill", skill);
+  document.querySelectorAll(".expCat:checked").forEach((c) =>
+    params.append("cats", c.value));
+  window.location.assign(`/api/questions/export?${params}`);
 };
 
 const impOverlay = (on) =>
@@ -627,6 +698,8 @@ document.getElementById("resetUsed").onclick = async () => {
   }
   document.getElementById("s_ppr").onchange = loadPreview;
   document.getElementById("s_pre").onchange = loadPreview;
+  document.getElementById("s_reveal").onchange = (e) =>
+    (document.getElementById("s_reveal_pause").disabled = e.target.value !== "seq");
   document.getElementById("s_maxq_on").onchange = (e) =>
     MAXQ_STAGES.forEach((s) =>
       (document.getElementById("s_maxq_" + s).disabled = !e.target.checked));

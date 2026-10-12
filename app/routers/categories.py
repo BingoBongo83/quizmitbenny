@@ -171,7 +171,14 @@ async def import_custom_questions(cid: int, file: UploadFile):
     items = []
     name = (file.filename or "").lower()
     if name.endswith(".json") or raw.lstrip().startswith("["):
-        items = json.loads(raw)
+        try:
+            items = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                400, f"JSON ungültig: {e.msg} – Zeile {e.lineno}, "
+                     f"Spalte {e.colno}")
+        if not isinstance(items, list):
+            raise HTTPException(400, "JSON muss ein Array von Fragen sein")
     else:
         import csv
         import io
@@ -180,17 +187,24 @@ async def import_custom_questions(cid: int, file: UploadFile):
             if not row or not row[0].strip() or row[0].startswith("#"):
                 continue
             row += [""] * (7 - len(row))
-            items.append({
-                "text": row[0], "answer1": row[1], "answer2": row[2],
-                "answer3": row[3], "answer4": row[4],
-                "correct": int(row[5] or 1), "skill": int(row[6] or 1),
-            })
+            try:
+                items.append({
+                    "text": row[0], "answer1": row[1], "answer2": row[2],
+                    "answer3": row[3], "answer4": row[4],
+                    "correct": int(row[5] or 1), "skill": int(row[6] or 1),
+                })
+            except ValueError:
+                raise HTTPException(
+                    400, f"CSV ungültig in Zeile: {';'.join(row)[:80]}")
     db = next(get_db())
     count = 0
     try:
-        for it in items:
-            body = CustomQuestionBody(**it)
-            _validate_cq(body)
+        for i, it in enumerate(items, 1):
+            try:
+                body = CustomQuestionBody(**it)
+                _validate_cq(body)
+            except (ValueError, TypeError) as e:
+                raise HTTPException(400, f"Eintrag {i} ungültig: {e}")
             db.add(CustomQuestion(category_id=cid, **body.model_dump()))
             count += 1
         db.commit()

@@ -32,6 +32,7 @@ class JokerBody(BaseModel):
 
 class ReportBody(BaseModel):
     which: str = "current"  # 'current' | 'next'
+    qid: int | None = None  # question the moderator saw -> safety pin
 
 
 @router.post("/create")
@@ -139,7 +140,7 @@ async def report_question(body: ReportBody):
     """Flag the current or next-preview question as broken (excluded from pools)."""
     db = next(get_db())
     try:
-        ok, err = game.report_question(db, body.which)
+        ok, err = game.report_question(db, body.which, body.qid)
         if not ok:
             raise HTTPException(400, err)
     finally:

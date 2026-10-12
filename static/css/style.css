@@ -70,7 +70,7 @@ button.danger { background: linear-gradient(135deg, #571f26, #3a1418); }
 button.danger:hover { box-shadow: 0 4px 18px rgba(255,77,94,.35); }
 button:disabled { opacity: .35; cursor: not-allowed; transform: none; box-shadow: none; }
 
-input, select {
+input, select, textarea {
   font: inherit;
   background: rgba(11,15,36,.8);
   border: 1px solid #2c3568;
@@ -78,7 +78,18 @@ input, select {
   color: var(--text);
   padding: 0.5em 0.75em;
 }
-input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,124,255,.2); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,124,255,.2); }
+
+/* auto-growing question textareas: single row, expand as needed */
+textarea.autota {
+  width: 100%;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.45;
+  min-height: 2.4em;
+  max-height: 30vh;
+  overflow-y: auto;
+}
 
 h1, h2, h3 { font-weight: 700; }
 .muted { color: var(--muted); }
@@ -242,6 +253,7 @@ h1, h2, h3 { font-weight: 700; }
 .answer:nth-child(3) { animation-delay: .35s; }
 .answer:nth-child(4) { animation-delay: .45s; }
 .answers.no-anim .answer { animation: none; }
+.answer.reveal-pending { visibility: hidden; }
 .answer .letter {
   flex: 0 0 auto;
   display: grid;
@@ -723,6 +735,13 @@ nav.topnav .spacer { flex: 1; }
   display: flex; gap: 10px; justify-content: flex-end;
   margin-top: 16px; padding-top: 14px;
   border-top: 1px solid rgba(120,135,200,.15);
+}
+
+/* question editor: answer rows with correct-radio */
+.qe-ans { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.qe-ans input[type="text"] { flex: 1; }
+.qe-ans input[type="radio"] {
+  width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer;
 }
 
 /* import-in-progress overlay */

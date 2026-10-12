@@ -10,6 +10,8 @@ let prevArmed = false;
 let prevResult = false;
 let prevLocked = false;
 let lastBoardQid = null;
+let lastState = null;
+let revealTimer = null;
 let audio = null;
 
 // ---------- sound ----------
@@ -109,6 +111,7 @@ function buzz(slot) {
 
 // ---------- render ----------
 function render(state) {
+  lastState = state;
   const rl = document.getElementById("roundLabel");
   rl.textContent = state.round
     ? `${state.round.type_label}${state.round.type === "preround" ? " " + state.round.number : ""}`
@@ -199,6 +202,32 @@ function render(state) {
       }
       aw.appendChild(d);
     });
+    // answer reveal: optional delay before the first answer, then (in seq
+    // mode) one answer every pause. due_i = delay + i*pause.
+    // timed off the server's shown_at so state refreshes don't restart it.
+    clearTimeout(revealTimer); revealTimer = null;
+    const seqPause = state.answer_reveal === "seq" ? (+state.reveal_pause || 0) : 0;
+    const delay = +state.reveal_delay || 0;
+    if (state.phase !== "resolved" && (seqPause || delay)) {
+      // clock offset is frozen per state message: recomputing it here would
+      // pin `elapsed` to broadcast time and the reveal would never advance
+      if (state._srvOffset === undefined)
+        state._srvOffset = (state.server_now || 0) - Date.now() / 1000;
+      const elapsed = state.question_shown_at
+        ? Date.now() / 1000 + state._srvOffset - state.question_shown_at
+        : 1e9;
+      let nextDue = null;
+      aw.querySelectorAll(".answer").forEach((d, i) => {
+        const due = delay + i * seqPause;
+        if (elapsed < due) {
+          d.classList.add("reveal-pending");
+          if (nextDue === null) nextDue = due;
+        }
+      });
+      if (nextDue !== null)
+        revealTimer = setTimeout(
+          () => render(lastState), (nextDue - elapsed) * 1000 + 40);
+    }
   } else {
     lastBoardQid = null;
     qbox.classList.add("hidden");

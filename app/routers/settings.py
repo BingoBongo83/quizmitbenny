@@ -33,6 +33,9 @@ class SettingsBody(BaseModel):
     points_wrong_others: int | None = None
     block_on_wrong: bool | None = None
     sound_target: str | None = None
+    answer_reveal: str | None = None
+    reveal_delay: float | None = None
+    reveal_pause: float | None = None
     seat_colors: list[str] | None = None
     joker_fifty: bool | None = None
     joker_double: bool | None = None
@@ -127,6 +130,12 @@ def update_settings(body: SettingsBody):
             raise HTTPException(400, "Vorrunden muss 3-5 sein")
         if "sound_target" in data and data["sound_target"] not in ("board", "admin", "both"):
             raise HTTPException(400, "Ungültiges Sound-Ziel")
+        if "answer_reveal" in data and data["answer_reveal"] not in ("all", "seq"):
+            raise HTTPException(400, "Ungültiger Einblend-Modus")
+        if "reveal_pause" in data and not 0.3 <= data["reveal_pause"] <= 15:
+            raise HTTPException(400, "Pause muss 0.3-15 Sekunden sein")
+        if "reveal_delay" in data and not 0 <= data["reveal_delay"] <= 15:
+            raise HTTPException(400, "Start-Pause muss 0-15 Sekunden sein")
         if "max_questions" in data and not 1 <= data["max_questions"] <= 200:
             raise HTTPException(400, "Max. Fragen muss 1-200 sein")
         for k in ("max_questions_preround", "max_questions_playoff",
