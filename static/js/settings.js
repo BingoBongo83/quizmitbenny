@@ -595,7 +595,7 @@ document.getElementById("qImport").onchange = async (e) => {
 
 document.getElementById("qSeedBtn").onclick = async () => {
   const raw = await Dlg.prompt(
-    "Wie viele Fragen von OpenTriviaDB laden? (max. 200, werden via DeepL übersetzt)",
+    "Wie viele Fragen von OpenTriviaDB laden? (max. 200, werden ins Deutsche übersetzt)",
     "20", { type: "number" });
   const amount = +raw;
   if (!amount) return;

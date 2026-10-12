@@ -41,5 +41,18 @@ def get_database_url() -> str:
 DATABASE_URL = get_database_url()
 SECRET_KEY = _get("SECRET_KEY", "dev-secret-key")
 BUZZER_TOKEN = _get("BUZZER_TOKEN", "")
-DEEPL_API_KEY = _get("DEEPL_API_KEY", "")
 SITE_PASSWORD = _get("SITE_PASSWORD", "")
+
+# Translation: Azure OpenAI -> OpenAI -> DeepL (env vars win over config.py)
+AZURE_OPENAI_API_KEY = os.environ.get("AZURE_OPENAI_API_KEY") or _get("AZURE_OPENAI_API_KEY", "")
+AZURE_OPENAI_ENDPOINT = (
+    os.environ.get("AZURE_OPENAI_ENDPOINT") or _get("AZURE_OPENAI_ENDPOINT", "")
+).rstrip("/")
+AZURE_OPENAI_MODEL = os.environ.get("AZURE_OPENAI_MODEL") or _get("AZURE_OPENAI_MODEL", "")
+AZURE_OPENAI_API_VERSION = (
+    os.environ.get("AZURE_OPENAI_API_VERSION")
+    or _get("AZURE_OPENAI_API_VERSION", "2025-04-01-preview")
+)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") or _get("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL") or _get("OPENAI_MODEL", "gpt-4o-mini")
+DEEPL_API_KEY = os.environ.get("DEEPL_API_KEY") or _get("DEEPL_API_KEY", "")

@@ -24,5 +24,18 @@ SITE_PASSWORD = ""
 BUZZER_TOKEN = "buzzer-token"
 
 # ---------- Question seeding ----------
-# DeepL API key (free key: https://www.deepl.com/pro-api)
+# Azure OpenAI – preferred translator.
+# AZURE_OPENAI_MODEL is the *deployment name* in your Azure resource.
+AZURE_OPENAI_API_KEY = ""
+AZURE_OPENAI_ENDPOINT = "https://<resource>.openai.azure.com/"
+AZURE_OPENAI_MODEL = ""
+AZURE_OPENAI_API_VERSION = "2025-04-01-preview"
+
+# OpenAI API key – used when no Azure deployment is configured
+# (https://platform.openai.com/api-keys)
+OPENAI_API_KEY = ""
+OPENAI_MODEL = "gpt-4o-mini"
+
+# DeepL API key – fallback when neither Azure nor OpenAI is configured
+# (free key: https://www.deepl.com/pro-api)
 DEEPL_API_KEY = ""

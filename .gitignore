@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
 env/
-config.py
+/config.py
 *.db
 .DS_Store
 id_quizmitbenny

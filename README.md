@@ -43,7 +43,8 @@ cp example.config.py config.py   # Zugangsdaten eintragen (gitignored!)
 ```
 
 `config.py` enthält alle Secrets: MariaDB-Zugang (`DB_*` oder `DATABASE_URL`),
-`SECRET_KEY`, `BUZZER_TOKEN`, `DEEPL_API_KEY`. Ohne MariaDB einfach
+`SECRET_KEY`, `BUZZER_TOKEN`, `AZURE_OPENAI_*`/`OPENAI_API_KEY`/`DEEPL_API_KEY`.
+Ohne MariaDB einfach
 `DATABASE_URL = "sqlite:///./quiz_dev.db"` setzen.
 
 Optionaler Schutz: `SITE_PASSWORD` sperrt die ganze Seite hinter einem Passwort
@@ -100,8 +101,10 @@ python -m scripts.simulate_buzzer --server ws://localhost:8765
 
 - CRUD in den Einstellungen
 - CSV-Import (`;`-getrennt: `text;a1;a2;a3;a4;correct;skill;category`) oder JSON
-- OpenTriviaDB-Seed mit DeepL-Übersetzung: `DEEPL_API_KEY` in `config.py`, dann
-  `python -m scripts.seed_questions --amount 50` oder Button im UI
+- OpenTriviaDB-Seed mit Übersetzung ins Deutsche: `AZURE_OPENAI_*` in
+  `config.py` (Fallbacks: `OPENAI_API_KEY`, dann `DEEPL_API_KEY`), dann
+  `python -m scripts.seed_questions --amount 50` oder Button im UI.
+  Key testen: `python -m scripts.seed_questions --test-translate`
 
 ## Deploy (Server)
 
@@ -128,6 +131,10 @@ DATABASE_URL = "mysql+pymysql://quizmitbenny:$DB_PASS@localhost:3306/quizmitbenn
 SECRET_KEY = "$(openssl rand -hex 32)"
 BUZZER_TOKEN = "$(openssl rand -hex 16)"
 SITE_PASSWORD = "hier-gaeste-passwort"
+AZURE_OPENAI_API_KEY = ""
+AZURE_OPENAI_ENDPOINT = ""
+AZURE_OPENAI_MODEL = ""
+OPENAI_API_KEY = ""
 DEEPL_API_KEY = ""
 EOF
 

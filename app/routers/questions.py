@@ -1,4 +1,4 @@
-"""Question CRUD + bulk import (CSV/JSON) + OpenTriviaDB/DeepL seeding."""
+"""Question CRUD + bulk import (CSV/JSON) + OpenTriviaDB seeding (OpenAI/DeepL)."""
 
 import json
 
@@ -189,7 +189,7 @@ class SeedBody(BaseModel):
 
 @router.post("/seed")
 async def seed_questions(body: SeedBody):
-    """Fetch from OpenTriviaDB, translate to German via DeepL, insert."""
+    """Fetch from OpenTriviaDB, translate to German (OpenAI/DeepL), insert."""
     import asyncio
     from scripts.seed_questions import seed
     if not 1 <= body.amount <= 200:
