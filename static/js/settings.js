@@ -55,6 +55,7 @@ const MODAL_REFRESH = {
   "m-cats": () => loadCategories(),
   "m-reported": () => loadReported(),
   "m-export": () => loadExportCats(),
+  "m-stats": () => loadStats(),
 };
 function openModal(id) {
   document.getElementById(id).classList.remove("hidden");
@@ -596,6 +597,75 @@ async function loadReported() {
       catId: x.category_id, category: x.category || "",
     });
   }));
+}
+
+// ---------------- statistics ----------------
+const ST_PAGE_SIZE = 10;
+let stEvents = [], stGameSeq = 0, stPage = 0;
+
+async function loadStats() {
+  const st = await api("/api/settings/stats");
+  stGameSeq = st.game_seq;
+
+  document.getElementById("stSkills").innerHTML =
+    `<tr><th>Level</th><th>Gesamt</th><th>Frei</th><th>Genutzt</th><th>Gemeldet</th></tr>` +
+    (st.skills.map((s) => `<tr>
+      <td>${"★".repeat(s.skill)}</td><td>${s.total}</td>
+      <td>${s.free}</td><td>${s.used}</td><td>${s.reported}</td></tr>`).join("")
+     || '<tr><td class="muted" colspan="5">Keine Fragen</td></tr>');
+
+  document.getElementById("stCats").innerHTML =
+    `<tr><th>Kategorie</th><th>Gesamt</th><th>Frei</th><th>Genutzt</th><th>Gemeldet</th></tr>` +
+    (st.categories.map((c) => `<tr>
+      <td>${esc(c.name)}${c.custom ? ' <span class="badge">eigene</span>' : ""}</td>
+      <td>${c.total}</td><td>${c.free}</td>
+      <td>${c.used}</td><td>${c.reported}</td></tr>`).join("")
+     || '<tr><td class="muted" colspan="5">Keine Fragen</td></tr>');
+
+  const ptable = (rows, showGames) => rows.length
+    ? `<tr><th>Spieler</th>${showGames ? "<th>Spiele</th>" : ""}
+       <th>Antw.</th><th>✓</th><th>✗</th><th>Quote</th><th>Pkt.</th></tr>` +
+      rows.map((p) => {
+        const rate = p.answered ? Math.round(100 * p.correct / p.answered) : 0;
+        return `<tr><td>${esc(p.name)}</td>${showGames ? `<td>${p.games}</td>` : ""}
+          <td>${p.answered}</td><td>${p.correct}</td><td>${p.wrong}</td>
+          <td>${rate}%</td><td>${p.points}</td></tr>`;
+      }).join("")
+    : '<tr><td class="muted">Noch keine Antworten</td></tr>';
+  document.getElementById("stPlayersGame").innerHTML =
+    ptable(st.players_game, false);
+  document.getElementById("stPlayersAll").innerHTML =
+    ptable(st.players_all, true);
+
+  stEvents = st.events;
+  stPage = 0;
+  renderStEvents();
+}
+
+function renderStEvents() {
+  const ICON = { correct: "✓", wrong: "✗", skipped: "⤼" };
+  const CLS = { correct: "st-ok", wrong: "st-bad", skipped: "muted" };
+  const pages = Math.max(1, Math.ceil(stEvents.length / ST_PAGE_SIZE));
+  const page = stEvents.slice(stPage * ST_PAGE_SIZE, (stPage + 1) * ST_PAGE_SIZE);
+  document.getElementById("stEvents").innerHTML = page.map((e) => {
+    const pts = e.points ? ` ${e.points > 0 ? "+" : ""}${e.points}` : "";
+    return `<div class="st-ev">
+      <span class="badge">${e.game === stGameSeq ? "aktuell" : `Spiel ${e.game}`}</span>
+      <span class="muted">${esc(e.round)}</span>
+      <b>${esc(e.player)}</b>
+      <span class="st-q">${esc(e.question)}</span>
+      <span class="${CLS[e.outcome] || ""}">${ICON[e.outcome] || e.outcome}${pts}</span>
+    </div>`;
+  }).join("") || '<div class="muted">Noch keine Einträge</div>';
+  document.getElementById("stEventsPager").innerHTML =
+    stEvents.length > ST_PAGE_SIZE
+      ? `<button id="stPrev" ${stPage === 0 ? "disabled" : ""}>◀</button>
+         <span class="muted">Seite ${stPage + 1} / ${pages} (${stEvents.length} Einträge)</span>
+         <button id="stNext" ${stPage >= pages - 1 ? "disabled" : ""}>▶</button>`
+      : "";
+  const prev = document.getElementById("stPrev"), next = document.getElementById("stNext");
+  if (prev) prev.onclick = () => { stPage--; renderStEvents(); };
+  if (next) next.onclick = () => { stPage++; renderStEvents(); };
 }
 
 document.getElementById("nq_add").onclick = async () => {

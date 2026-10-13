@@ -116,6 +116,28 @@ class RoundPlayer(Base):
     qualified = Column(String(32), nullable=True)  # 'direct'|'playoff'|'out'|None
 
 
+class AnswerLog(Base):
+    """Persistent per-answer log for statistics. Player/question text are
+    denormalized so entries survive game resets and player/question edits."""
+
+    __tablename__ = "answer_log"
+
+    id = Column(Integer, primary_key=True)
+    game_seq = Column(Integer, default=0)  # increments per created game
+    round_number = Column(Integer, default=0)
+    round_type = Column(String(32), default="")
+    question_source = Column(String(8), default="q")  # 'q' | 'c'
+    question_id = Column(Integer, nullable=True)
+    question_text = Column(Text, default="")
+    category = Column(String(255), default="")
+    player_id = Column(Integer, nullable=True)   # NULL on skipped questions
+    player_name = Column(String(255), default="")
+    slot = Column(Integer, nullable=True)
+    outcome = Column(String(16))  # correct | wrong | skipped
+    points = Column(Integer, default=0)        # score delta of the answerer
+    created_at = Column(Integer, default=0)    # epoch seconds
+
+
 class ConfigKV(Base):
     __tablename__ = "config"
 

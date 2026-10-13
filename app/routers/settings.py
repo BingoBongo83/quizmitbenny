@@ -2,11 +2,14 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import case, func
 
 from .. import game
 from ..auth import require_admin
 from ..db import get_db
 from ..models import (
+    AnswerLog,
+    Category,
     CustomQuestion,
     Player,
     Question,
@@ -212,6 +215,105 @@ def reset_questions():
         )
         db.commit()
         return {"ok": True}
+    finally:
+        db.close()
+
+
+ROUND_TYPE_LABELS = {
+    "preround": "Vorrunde",
+    "playoff_presemi": "Playoff",
+    "semifinal": "Halbfinale",
+    "playoff_prefinal": "Playoff",
+    "final": "Finale",
+}
+
+
+@router.get("/stats")
+def stats():
+    """Question-pool distribution + persistent answer statistics."""
+    db = next(get_db())
+    try:
+        # --- standard pool: per skill level + per category string ---
+        skills = {}
+        cats = {}
+        for sk, used, rep, cat in db.query(
+                Question.skill, Question.used, Question.reported,
+                Question.category).all():
+            for r in (skills.setdefault(sk, {"skill": sk, "total": 0,
+                                             "used": 0, "free": 0,
+                                             "reported": 0}),
+                      cats.setdefault(cat or "–", {"name": cat or "–",
+                                                   "total": 0, "used": 0,
+                                                   "free": 0,
+                                                   "reported": 0})):
+                r["total"] += 1
+                if rep:
+                    r["reported"] += 1
+                elif used:
+                    r["used"] += 1
+                else:
+                    r["free"] += 1
+        categories = [{"custom": False, **r}
+                      for _, r in sorted(cats.items())]
+        # --- custom/category pools ---
+        for cat in db.query(Category).order_by(Category.name).all():
+            row = {"name": cat.name, "custom": True, "total": 0,
+                   "used": 0, "free": 0, "reported": 0}
+            for used, rep in db.query(CustomQuestion.used,
+                                      CustomQuestion.reported).filter(
+                    CustomQuestion.category_id == cat.id).all():
+                row["total"] += 1
+                if rep:
+                    row["reported"] += 1
+                elif used:
+                    row["used"] += 1
+                else:
+                    row["free"] += 1
+            categories.append(row)
+
+        # --- answer stats: per player, current game + all-time ---
+        seq = game.get_state().get("game_seq") or 0
+
+        def player_stats(*filters):
+            rows = (db.query(
+                AnswerLog.player_name,
+                func.count(AnswerLog.id),
+                func.sum(case((AnswerLog.outcome == "correct", 1), else_=0)),
+                func.sum(case((AnswerLog.outcome == "wrong", 1), else_=0)),
+                func.sum(AnswerLog.points),
+                func.count(func.distinct(AnswerLog.game_seq)))
+                .filter(AnswerLog.player_name != "", *filters)
+                .group_by(AnswerLog.player_name)
+                .all())
+            out = [{"name": n, "answered": c or 0, "correct": ok or 0,
+                    "wrong": w or 0, "points": p or 0, "games": g or 0}
+                   for n, c, ok, w, p, g in rows]
+            out.sort(key=lambda a: (-a["correct"], a["name"]))
+            return out
+
+        events = [{
+            "game": e.game_seq,
+            "round": f"{ROUND_TYPE_LABELS.get(e.round_type, e.round_type)}"
+                     f" {e.round_number}".strip(),
+            "player": e.player_name or "–",
+            "question": e.question_text,
+            "category": e.category,
+            "outcome": e.outcome,
+            "points": e.points,
+            "ts": e.created_at,
+        } for e in (db.query(AnswerLog)
+                    .order_by(AnswerLog.id.desc())
+                    .limit(300)
+                    .all())]
+
+        return {
+            "game_seq": seq,
+            "skills": sorted(skills.values(), key=lambda s: s["skill"]),
+            "categories": categories,
+            "players_game": player_stats(AnswerLog.game_seq == seq),
+            "players_all": player_stats(),
+            "events": events,
+        }
     finally:
         db.close()
 

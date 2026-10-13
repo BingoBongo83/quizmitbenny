@@ -659,6 +659,25 @@ table.list { width: 100%; border-collapse: collapse; }
 table.list td, table.list th { padding: 6px 8px; border-bottom: 1px solid rgba(120,135,200,.15); text-align: left; font-size: .95em; }
 table.list th { color: var(--muted); font-size: .78em; text-transform: uppercase; letter-spacing: .1em; }
 
+/* ---------- statistics modal ---------- */
+.modal h3 {
+  color: var(--accent);
+  font-size: .85em;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin: 18px 0 8px;
+}
+.stats-scroll { max-height: 240px; overflow-y: auto; }
+.stats-events { max-height: 280px; overflow-y: auto; }
+.st-ev {
+  display: flex; gap: 10px; align-items: baseline;
+  padding: 5px 2px; border-bottom: 1px solid rgba(120,135,200,.12);
+  font-size: .92em;
+}
+.st-ev .st-q { flex: 1; min-width: 0; overflow-wrap: break-word; }
+.st-ok { color: var(--green); font-weight: 700; white-space: nowrap; }
+.st-bad { color: var(--red); font-weight: 700; white-space: nowrap; }
+
 nav.topnav {
   display: flex; gap: 20px; padding: 14px 24px;
   background: rgba(11,15,36,.75);

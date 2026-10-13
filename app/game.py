@@ -18,6 +18,7 @@ import time
 from sqlalchemy.orm import Session
 
 from .models import (
+    AnswerLog,
     Category,
     ConfigKV,
     CustomQuestion,
@@ -65,6 +66,7 @@ _state = {
     "locked_answer": None,  # moderator's first click = lock-in, second = judge
     "tiebreak_slots": None,  # Stichfrage: only these slots may buzz (None = all)
     "question_shown_at": None,  # unix ts when current question went on the board
+    "game_seq": 0,  # increments per create_game – tags AnswerLog entries
 }
 
 _subscribers = []  # ws connection manager is injected
@@ -90,6 +92,38 @@ def load_state(db: Session):
 
 def get_state() -> dict:
     return dict(_state)
+
+
+def _log_answer(db: Session, q, src: str, outcome: str,
+                rp: RoundPlayer | None = None, points: int = 0):
+    """Persist one answer event for statistics (survives game resets)."""
+    rnd = db.get(Round, _state["round_id"]) if _state["round_id"] else None
+    cat = ""
+    if q is not None:
+        if src == "c":
+            c = db.get(Category, q.category_id)
+            cat = c.name if c else ""
+        else:
+            cat = q.category or ""
+    pname = ""
+    if rp is not None:
+        p = db.get(Player, rp.player_id)
+        pname = p.name if p else ""
+    db.add(AnswerLog(
+        game_seq=_state.get("game_seq") or 0,
+        round_number=rnd.number if rnd else 0,
+        round_type=rnd.type if rnd else "",
+        question_source=src,
+        question_id=q.id if q else None,
+        question_text=(q.text or "")[:500] if q else "",
+        category=cat,
+        player_id=rp.player_id if rp else None,
+        player_name=pname,
+        slot=rp.slot if rp else None,
+        outcome=outcome,
+        points=points,
+        created_at=int(time.time()),
+    ))
 
 
 # ---------------------------------------------------------------------------
@@ -184,6 +218,7 @@ def create_game(db: Session, player_ids: list[int], shuffle: bool = True):
             "audience_voting": False, "audience_votes": {},
             "audience_result": None, "audience_pick": None,
             "locked_answer": None, "tiebreak_slots": None,
+            "game_seq": (_state.get("game_seq") or 0) + 1,
         })
         db.commit()
         _persist_state(db)
@@ -614,6 +649,10 @@ def skip_question(db: Session):
     """Discard current question without scoring; stay/return to idle.
     The pending preview question moves up as the next one."""
     with _lock:
+        q = get_question(db)
+        if q:
+            _log_answer(db, q, _state.get("question_source") or "q",
+                        "skipped")
         _state.update({
             "phase": "idle", "question_id": None, "question_source": None,
             "buzzed_slot": None, "picked_answer": None, "correct_answer": None,
@@ -811,6 +850,11 @@ def pick_answer(db: Session, answer_idx: int):
             "picked_answer": answer_idx,
             "correct_answer": q.correct,
         })
+        answerer = next((r for r in rps if r.slot == slot), None)
+        pts = (s["points_correct"] * mult if correct
+               else s["points_wrong_self"])
+        _log_answer(db, q, _state.get("question_source") or "q",
+                    "correct" if correct else "wrong", answerer, pts)
         db.commit()
         _persist_state(db)
         return correct, q

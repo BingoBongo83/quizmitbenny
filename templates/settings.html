@@ -42,6 +42,10 @@
       <span class="fn-title">Gemeldete Fragen</span>
       <span class="fn-sub" id="sub-reported">…</span>
     </button>
+    <button class="fn-card" data-modal="m-stats">
+      <span class="fn-title">Statistik</span>
+      <span class="fn-sub">Fragen-Pool &amp; Antworten</span>
+    </button>
   </div>
 </div>
 
@@ -251,6 +255,32 @@
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="m-stats">
+  <div class="modal wide">
+    <h2>Statistik</h2>
+    <div class="two-col">
+      <div>
+        <h3>Fragen pro Schwierigkeit</h3>
+        <table class="list" id="stSkills"></table>
+      </div>
+      <div>
+        <h3>Fragen pro Kategorie</h3>
+        <div class="stats-scroll"><table class="list" id="stCats"></table></div>
+      </div>
+    </div>
+    <h3>Antworten – aktuelles Spiel</h3>
+    <table class="list" id="stPlayersGame"></table>
+    <h3>Antworten – gesamt (alle Spiele)</h3>
+    <table class="list" id="stPlayersAll"></table>
+    <h3>Protokoll</h3>
+    <div id="stEvents" class="stats-events"></div>
+    <div class="btnrow" id="stEventsPager" style="align-items:center"></div>
+    <div class="modal-foot">
+      <button class="modalClose">Schließen</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="m-export" style="z-index:200">
   <div class="modal">
     <h2>Fragen exportieren</h2>
@@ -308,5 +338,5 @@
 </div>
 
 <script src="/static/js/dlg.js?v=1"></script>
-<script src="/static/js/settings.js?v=20"></script>
+<script src="/static/js/settings.js?v=21"></script>
 {% endblock %}
