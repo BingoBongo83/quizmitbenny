@@ -744,6 +744,17 @@ nav.topnav .spacer { flex: 1; }
   width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer;
 }
 
+/* add-question rows: answer input + correct-radio, checked answer tinted */
+.ans-pick { flex: 1; min-width: 150px; display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.ans-pick input[type="text"] { flex: 1; min-width: 0; }
+.ans-pick input[type="radio"] {
+  width: 16px; height: 16px; accent-color: var(--gold); cursor: pointer; flex: none;
+}
+.ans-pick:has(input[type="radio"]:checked) input[type="text"] {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(46,229,111,.15);
+}
+
 /* import-in-progress overlay */
 .imp-dots { display: flex; gap: 10px; justify-content: center; margin-bottom: 14px; }
 .imp-dots span {

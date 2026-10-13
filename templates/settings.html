@@ -186,10 +186,10 @@
       <textarea id="nq_text" class="autota" rows="1" placeholder="Fragetext"></textarea>
     </div>
     <div class="player-row">
-      <input type="text" id="nq_a1" placeholder="Antwort 1 (richtig)">
-      <input type="text" id="nq_a2" placeholder="Antwort 2">
-      <input type="text" id="nq_a3" placeholder="Antwort 3">
-      <input type="text" id="nq_a4" placeholder="Antwort 4">
+      <label class="ans-pick"><input type="text" id="nq_a1" placeholder="Antwort 1"><input type="radio" name="nq_correct" value="1" title="richtige Antwort" checked></label>
+      <label class="ans-pick"><input type="text" id="nq_a2" placeholder="Antwort 2"><input type="radio" name="nq_correct" value="2" title="richtige Antwort"></label>
+      <label class="ans-pick"><input type="text" id="nq_a3" placeholder="Antwort 3"><input type="radio" name="nq_correct" value="3" title="richtige Antwort"></label>
+      <label class="ans-pick"><input type="text" id="nq_a4" placeholder="Antwort 4"><input type="radio" name="nq_correct" value="4" title="richtige Antwort"></label>
       <select id="nq_skill"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
       <button id="nq_add">+</button>
     </div>
@@ -223,10 +223,10 @@
         <textarea id="cq_text" class="autota" rows="1" placeholder="Fragetext"></textarea>
       </div>
       <div class="player-row">
-        <input type="text" id="cq_a1" placeholder="Antwort 1 (richtig)">
-        <input type="text" id="cq_a2" placeholder="Antwort 2">
-        <input type="text" id="cq_a3" placeholder="Antwort 3">
-        <input type="text" id="cq_a4" placeholder="Antwort 4">
+        <label class="ans-pick"><input type="text" id="cq_a1" placeholder="Antwort 1"><input type="radio" name="cq_correct" value="1" title="richtige Antwort" checked></label>
+        <label class="ans-pick"><input type="text" id="cq_a2" placeholder="Antwort 2"><input type="radio" name="cq_correct" value="2" title="richtige Antwort"></label>
+        <label class="ans-pick"><input type="text" id="cq_a3" placeholder="Antwort 3"><input type="radio" name="cq_correct" value="3" title="richtige Antwort"></label>
+        <label class="ans-pick"><input type="text" id="cq_a4" placeholder="Antwort 4"><input type="radio" name="cq_correct" value="4" title="richtige Antwort"></label>
         <select id="cq_skill"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
         <button id="cq_add">+</button>
       </div>
@@ -308,5 +308,5 @@
 </div>
 
 <script src="/static/js/dlg.js?v=1"></script>
-<script src="/static/js/settings.js?v=19"></script>
+<script src="/static/js/settings.js?v=20"></script>
 {% endblock %}

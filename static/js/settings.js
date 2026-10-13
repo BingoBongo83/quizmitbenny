@@ -433,14 +433,17 @@ async function loadCustomQuestions() {
 }
 
 document.getElementById("cq_add").onclick = async () => {
+  const checked = document.querySelector('input[name="cq_correct"]:checked');
   const body = {
     text: cq_text.value, answer1: cq_a1.value, answer2: cq_a2.value,
     answer3: cq_a3.value, answer4: cq_a4.value,
-    correct: 1, skill: +cq_skill.value,
+    correct: checked ? +checked.value : 1, skill: +cq_skill.value,
   };
-  if (!body.text || !body.answer1) return Dlg.alert("Frage + Antworten ausfüllen");
+  if (!body.text || !body[`answer${body.correct}`])
+    return Dlg.alert("Frage + richtige Antwort ausfüllen");
   await api(`/api/categories/${activeCat}/questions`, "POST", body);
   ["cq_text", "cq_a1", "cq_a2", "cq_a3", "cq_a4"].forEach((id) => (document.getElementById(id).value = ""));
+  document.querySelector('input[name="cq_correct"][value="1"]').checked = true;
   taGrow(document.getElementById("cq_text"));
   loadCustomQuestions(); loadCategories();
 };
@@ -596,14 +599,18 @@ async function loadReported() {
 }
 
 document.getElementById("nq_add").onclick = async () => {
+  const checked = document.querySelector('input[name="nq_correct"]:checked');
   const body = {
     text: nq_text.value, answer1: nq_a1.value, answer2: nq_a2.value,
-    answer3: nq_a3.value, answer4: nq_a4.value, correct: 1,
+    answer3: nq_a3.value, answer4: nq_a4.value,
+    correct: checked ? +checked.value : 1,
     skill: +nq_skill.value,
   };
-  if (!body.text || !body.answer1) return Dlg.alert("Frage + Antworten ausfüllen");
+  if (!body.text || !body[`answer${body.correct}`])
+    return Dlg.alert("Frage + richtige Antwort ausfüllen");
   await api("/api/questions", "POST", body);
   ["nq_text", "nq_a1", "nq_a2", "nq_a3", "nq_a4"].forEach((id) => (document.getElementById(id).value = ""));
+  document.querySelector('input[name="nq_correct"][value="1"]').checked = true;
   taGrow(document.getElementById("nq_text"));
   loadQuestions();
 };
