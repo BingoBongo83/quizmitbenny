@@ -142,40 +142,32 @@ let players = [];
 let settings = {};
 
 // ---------------- players ----------------
-function neededPlayers() {
-  return (settings.players_per_round || 0) * (settings.num_prerounds || 0);
-}
+let pickedIds = new Set();  // players selected for the next game
 
 async function loadPlayers() {
   players = await api("/api/settings/players");
-  const need = neededPlayers();
   const actives = players.filter((p) => p.active);
   const inactives = players.filter((p) => !p.active);
+  // selection only holds active players; default = all active
+  pickedIds = new Set([...pickedIds].filter((id) => actives.some((p) => p.id === id)));
+  if (!pickedIds.size && actives.length)
+    pickedIds = new Set(actives.map((p) => p.id));
   const el = document.getElementById("playerList");
   document.getElementById("sub-players").textContent =
-    `${actives.length} aktiv · ${need} benötigt` +
+    `${actives.length} aktiv` +
     (inactives.length ? ` · ${inactives.length} inaktiv` : "");
-  const info = need
-    ? `<div class="muted" style="margin-bottom:8px">Benötigt: <b>${need}</b> Spieler
-       (${settings.players_per_round}/Runde × ${settings.num_prerounds} Vorrunden) –
-       aktiv: <b>${actives.length}</b>${actives.length > need
-         ? ` <span style="color:var(--accent2)">(${actives.length - need} auf Ersatzbank)</span>` : ""}
-       ${actives.length < need
-         ? ` <span style="color:var(--red)">(${need - actives.length} fehlen)</span>` : ""}</div>`
-    : "";
-  const row = (p, bench) => `
-    <div class="player-row ${bench ? "bench" : ""} ${!p.active ? "inactive" : ""}">
+  const row = (p) => `
+    <div class="player-row ${!p.active ? "inactive" : ""}">
       <label><input type="checkbox" data-pid="${p.id}" ${p.active ? "checked" : ""} class="pactive"> aktiv</label>
       <input type="text" value="${esc(p.name)}" data-pid="${p.id}" class="pname" style="flex:1">
-      ${bench ? '<span class="badge">Ersatz</span>' : ""}
       <button data-pid="${p.id}" class="psave">Speichern</button>
       <button data-pid="${p.id}" class="pdel danger">×</button>
     </div>`;
-  el.innerHTML = info + actives.map((p, i) => row(p, i >= need)).join("") +
+  el.innerHTML = actives.map(row).join("") +
     (inactives.length
       ? `<div class="player-row"><button id="toggleInact" style="padding:4px 14px;font-size:.8em">
            ▸ Inaktive Spieler (${inactives.length})</button></div>
-         <div id="inactList" class="hidden">${inactives.map((p) => row(p, false)).join("")}</div>`
+         <div id="inactList" class="hidden">${inactives.map(row).join("")}</div>`
       : "");
   const tg = document.getElementById("toggleInact");
   if (tg) tg.onclick = () => {
@@ -202,7 +194,58 @@ async function loadPlayers() {
     await api(`/api/settings/players/${pid}`, "PUT", { name, active: c.checked });
     loadPlayers();
   }));
+  renderGamePick();
   loadPreview();
+}
+
+// ---------------- game setup: player pick + plan choice ----------------
+const stageTxt = (p) =>
+  p.stages.map((s) => `${s.label} ${s.sizes.join("/")}`).join(" · ");
+
+function renderGamePick() {
+  const el = document.getElementById("gamePick");
+  const actives = players.filter((p) => p.active);
+  el.innerHTML = actives.length
+    ? actives.map((p) => `
+      <label class="pick-chip ${pickedIds.has(p.id) ? "on" : ""}">
+        <input type="checkbox" class="pplay" data-pid="${p.id}"
+          ${pickedIds.has(p.id) ? "checked" : ""}><span>${esc(p.name)}</span>
+      </label>`).join("")
+    : '<span class="muted">Keine aktiven Spieler</span>';
+  el.querySelectorAll(".pplay").forEach((c) => (c.onchange = () => {
+    const id = +c.dataset.pid;
+    if (c.checked) pickedIds.add(id); else pickedIds.delete(id);
+    c.closest(".pick-chip").classList.toggle("on", c.checked);
+    loadPlans();
+  }));
+  loadPlans();
+}
+
+async function loadPlans() {
+  const el = document.getElementById("planList");
+  const n = pickedIds.size;
+  if (n < 2) {
+    el.innerHTML = '<div class="muted" style="margin:6px 0">Mind. 2 Mitspieler auswählen.</div>';
+    return;
+  }
+  const { plans } = await api(`/api/settings/plans?num_players=${n}`);
+  if (!plans || !plans.length) {
+    const max = (settings.players_per_round || 0) * (settings.num_prerounds || 0);
+    el.innerHTML = `<div style="color:var(--red);margin:6px 0">
+      Kein Spielplan für ${n} Spieler möglich (max. ${max} –
+      weniger auswählen oder „Spieler pro Runde“/„Max. Vorrunden“ erhöhen).</div>`;
+    return;
+  }
+  el.innerHTML = plans.map((p) => `
+    <label class="plan-opt">
+      <input type="radio" name="gplan" value="${esc(p.code)}" ${p.recommended ? "checked" : ""}>
+      <span>
+        <b>${esc(p.label)}</b> ${p.recommended ? '<span class="badge">empfohlen</span>' : ""}<br>
+        <span class="muted">${stageTxt(p)}</span>
+        ${p.playoffs.map((x) => `<br><span style="color:var(--accent2)">${esc(x)}</span>`).join("")}
+        ${p.warnings.map((x) => `<br><span style="color:var(--red)">${esc(x)}</span>`).join("")}
+      </span>
+    </label>`).join("");
 }
 
 document.getElementById("addPlayer").onclick = async () => {
@@ -244,7 +287,7 @@ async function loadSettings() {
   const mqTxt = new Set(mqVals).size === 1 ? `max ${mqVals[0]} Fr.` :
     `max ${mqVals.join("/")} Fr.`;
   document.getElementById("sub-game").textContent =
-    `${settings.players_per_round}/Runde · ${settings.num_prerounds} Vorrunden · ` +
+    `${settings.players_per_round}/Runde · max. ${settings.num_prerounds} Vorrunden · ` +
     `+${settings.points_correct}/${settings.points_wrong_self}/+${settings.points_wrong_others}` +
     (settings.max_questions_enabled ? ` · ${mqTxt}` : "");
   document.getElementById("sub-skills").textContent =
@@ -314,25 +357,31 @@ document.getElementById("saveSkills").onclick = (e) => saveAllSettings(e.target)
 
 // ---------------- bracket preview ----------------
 async function loadPreview() {
-  const active = players.filter((p) => p.active).length;
-  const n = Math.min(active, neededPlayers() || active);
+  const n = pickedIds.size || players.filter((p) => p.active).length;
   const el = document.getElementById("preview");
   if (!n) { el.textContent = "Keine aktiven Spieler"; return; }
-  const p = await api(`/api/settings/preview?num_players=${n}`);
-  el.innerHTML = `
-    <div>${n} Spieler → ${p.prerounds.length} Vorrunden (${p.prerounds.join(", ")})</div>
-    <div>Halbfinals: ${p.semifinals.join(" + ")} Spieler · Finale: ${p.final}</div>
-    ${p.playoffs.map((x) => `<div style="color:var(--accent2)">${esc(x)}</div>`).join("")}
-    ${p.warnings.map((x) => `<div style="color:var(--red)">${esc(x)}</div>`).join("")}`;
+  const { plans } = await api(`/api/settings/plans?num_players=${n}`);
+  const p = plans && plans[0];
+  el.innerHTML = !p
+    ? `${n} Spieler → <span style="color:var(--red)">kein gültiger Spielplan</span>`
+    : `<div>${n} Spieler → ${esc(p.label)}</div>
+       <div class="muted">${stageTxt(p)}</div>` +
+      p.playoffs.map((x) => `<div style="color:var(--accent2)">${esc(x)}</div>`).join("") +
+      p.warnings.map((x) => `<div style="color:var(--red)">${esc(x)}</div>`).join("");
 }
 
 // ---------------- game create / reset / round assignment ----------------
 document.getElementById("createGameShuffle").onclick = () => createGame(true);
 document.getElementById("createGameOrder").onclick = () => createGame(false);
 async function createGame(shuffle) {
-  const n = Math.min(players.filter((p) => p.active).length, neededPlayers());
-  if (!(await Dlg.confirm(`Spiel mit den ersten ${n} aktiven Spielern erstellen? Bisherige Runden werden gelöscht.`))) return;
-  await api("/api/game/create", "POST", { shuffle });
+  const ids = [...pickedIds];
+  const plan = document.querySelector('input[name="gplan"]:checked');
+  if (!plan) {
+    await Dlg.alert("Bitte zuerst Mitspieler und Spielplan wählen.");
+    return;
+  }
+  if (!(await Dlg.confirm(`Spiel mit ${ids.length} ausgewählten Spielern erstellen? Bisherige Runden werden gelöscht.`))) return;
+  await api("/api/game/create", "POST", { player_ids: ids, plan: plan.value, shuffle });
   loadRounds();
 }
 document.getElementById("resetGame").onclick = async () => {
@@ -469,15 +518,25 @@ document.getElementById("cqImport").onchange = async (e) => {
 // ---------------- rounds + pools ----------------
 async function loadRounds() {
   const st = await api("/api/game/state");
-  document.getElementById("sub-rounds").textContent =
-    st.rounds.length ? `${st.rounds.length} Runden` : "kein Spiel";
-  const el = document.getElementById("roundAssign");
-  if (!st.rounds.length) { el.textContent = "Noch kein Spiel erstellt."; return; }
   const poolOpts = (sel) =>
     `<option value="standard"${sel === "standard" ? " selected" : ""}>Standard-Pool</option>` +
     categories.map((c) =>
       `<option value="cat:${c.id}"${sel === `cat:${c.id}` ? " selected" : ""}>${esc(c.name)}</option>`
     ).join("");
+  const defSel = document.getElementById("s_default_pool");
+  if (defSel) {
+    defSel.innerHTML = poolOpts(settings.default_pool || "standard");
+    defSel.onchange = async () => {
+      settings = await api("/api/settings", "PUT", { default_pool: defSel.value });
+    };
+  }
+  const defName = settings.default_pool && settings.default_pool !== "standard"
+    ? (categories.find((c) => `cat:${c.id}` === settings.default_pool) || {}).name || "Kategorie"
+    : "Standard-Pool";
+  document.getElementById("sub-rounds").textContent =
+    (st.rounds.length ? `${st.rounds.length} Runden` : "kein Spiel") + ` · Standard: ${defName}`;
+  const el = document.getElementById("roundAssign");
+  if (!st.rounds.length) { el.textContent = "Noch kein Spiel erstellt."; return; }
   el.innerHTML = st.rounds.map((r) => `
     <div style="margin:8px 0"><b>${r.type_label} #${r.number}</b>
       <span class="badge ${r.status === "active" ? "active" : r.status === "finished" ? "finished" : ""}">${r.status}</span>

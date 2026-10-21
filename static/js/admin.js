@@ -134,11 +134,12 @@ function render(st) {
   tbl.innerHTML = "<tr><th>Slot</th><th>Spieler</th><th>Joker</th><th>Punkte</th><th></th></tr>" +
     st.players.map((p) => {
       const hex = seatColors[p.slot - 1] || "#888";
-      return `<tr class="buzzsim ${p.buzzed ? "buzzed" : ""} ${p.blocked ? "blocked" : ""}"
+      const tbOut = tiebreak && !(st.round.tiebreak_slots || []).includes(p.slot);
+      return `<tr class="buzzsim ${p.buzzed ? "buzzed" : ""} ${p.blocked ? "blocked" : ""} ${tbOut ? "tb-out" : ""}"
            data-slot="${p.slot}" title="Klicken = Buzzer simulieren">
         <td>${p.slot} <span class="seat-dot" style="background:${hex};box-shadow:0 0 8px ${hex}"></span></td>
         <td>${esc(p.name)}</td><td>${jkChips(p)}</td><td>${p.score}</td>
-        <td>${p.buzzed ? "GEBUZZERT" : p.blocked ? "gesperrt" : ""}</td></tr>`;
+        <td>${p.buzzed ? "GEBUZZERT" : tbOut ? "aus" : p.blocked ? "gesperrt" : ""}</td></tr>`;
     }).join("");
   tbl.querySelectorAll("tr.buzzsim").forEach((row) =>
     (row.onclick = () => QuizWS.send({ type: "buzzer", buzzer: +row.dataset.slot })));
@@ -270,10 +271,11 @@ function render(st) {
       <div class="rc-players">${chips || '<span class="muted">–</span>'}</div>
     </div>`;
   };
-  const emptyMsg = '<span class="muted">Keine Runden – erst unter Einstellungen ein Spiel erstellen.</span>';
+  const emptyMsg = '<span class="muted">Keine Vorrunden in diesem Spiel.</span>';
   const emptyDash = '<span class="muted">–</span>';
   rl.innerHTML = (st.rounds.filter((r) => EARLY.has(r.type)).map(renderRound)
-    .join("")) || emptyMsg;
+    .join("")) || (st.rounds.length ? emptyMsg
+      : '<span class="muted">Keine Runden – erst unter Einstellungen ein Spiel erstellen.</span>');
   document.getElementById("lateRoundsList").innerHTML =
     (st.rounds.filter((r) => !EARLY.has(r.type)).map(renderRound).join("")) || emptyDash;
   document.querySelectorAll(".startRound").forEach((b) =>

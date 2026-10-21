@@ -142,7 +142,7 @@ h1, h2, h3 { font-weight: 700; }
   backdrop-filter: blur(10px);
   box-shadow: 0 0 30px var(--slot-glow, transparent),
               inset 0 0 18px rgba(0,0,0,.25);
-  transition: transform .2s, box-shadow .25s, opacity .2s,
+  transition: transform .2s, box-shadow .25s, opacity .3s, filter .3s,
               padding .5s ease, min-width .5s ease;
 }
 .player-card.clickable { cursor: pointer; }
@@ -192,6 +192,12 @@ h1, h2, h3 { font-weight: 700; }
   opacity: .3;
   border-top-color: var(--red);
   background: repeating-linear-gradient(45deg, rgba(90,20,28,.5) 0 10px, var(--card) 10px 20px);
+}
+/* Stichfrage: non-tied players fade out like their buzzers */
+.player-card.tb-out {
+  opacity: .25;
+  filter: grayscale(.85);
+  box-shadow: none;
 }
 
 .board-question {
@@ -477,6 +483,11 @@ button.sm { padding: .4em .9em; font-size: .78em; }
 .admin-players tr.blocked td { color: var(--red); opacity: .6; }
 .admin-players tr.buzzsim { cursor: pointer; }
 .admin-players tr.buzzsim:hover td { background: rgba(79,124,255,.12); }
+.admin-players tr.buzzsim.tb-out td {
+  opacity: .3;
+  filter: grayscale(.85);
+  transition: opacity .3s;
+}
 
 .answer-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .answer-btns button { text-align: left; font-size: 1.02em; padding: 14px; overflow-wrap: break-word; min-width: 0; }
@@ -559,6 +570,23 @@ label.field { display: block; margin: 10px 0 4px; color: var(--muted); font-size
 .joker-btn:hover { background: rgba(255,210,60,.2); }
 .badge.joker-active { border: 1px solid rgba(255,210,60,.6); color: var(--gold); background: rgba(255,210,60,.12); }
 .audience-hint { color: var(--gold); font-size: .9em; }
+
+/* audience-joker QR overlay: covers the whole scoreboard while voting is open */
+.qr-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(7,9,22,.94);
+  backdrop-filter: blur(6px);
+}
+.qr-box {
+  text-align: center;
+  background: #fdfdff;
+  border-radius: calc(var(--radius) * 1.5);
+  padding: 4vh 4vw;
+  box-shadow: 0 0 60px rgba(79,124,255,.35);
+}
+.qr-title { font-size: 4.5vh; font-weight: 800; color: #141830; margin-bottom: 2.5vh; }
+.qr-img { width: 42vh; height: 42vh; display: block; }
 .answer.fifty-hidden { opacity: .25; }
 .answer-btns button.fifty-hidden { opacity: .3; border-style: dashed; }
 .answer.audience-pick, .answer-btns button.audience-pick {
@@ -655,6 +683,41 @@ label.field { display: block; margin: 10px 0 4px; color: var(--muted); font-size
   font-size: .88em;
 }
 .chip b { color: var(--gold); }
+
+/* game setup: player pick chips + plan options */
+.game-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.pick-chip { cursor: pointer; user-select: none; }
+.pick-chip input { display: none; }
+.pick-chip span {
+  display: inline-block;
+  background: rgba(11,15,36,.6);
+  border: 1px solid rgba(120,135,200,.25);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: .88em;
+  color: var(--muted);
+}
+.pick-chip.on span {
+  color: var(--fg);
+  border-color: rgba(79,124,255,.7);
+  background: rgba(79,124,255,.18);
+  box-shadow: 0 0 10px rgba(79,124,255,.15);
+}
+.plan-opt {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--card2);
+  border: 1px solid rgba(120,135,200,.18);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin: 6px 0;
+  cursor: pointer;
+}
+.plan-opt:has(input:checked) {
+  border-color: rgba(79,124,255,.7);
+  box-shadow: 0 0 14px rgba(79,124,255,.15);
+}
+.plan-opt input { margin-top: 4px; }
+
 table.list { width: 100%; border-collapse: collapse; }
 table.list td, table.list th { padding: 6px 8px; border-bottom: 1px solid rgba(120,135,200,.15); text-align: left; font-size: .95em; }
 table.list th { color: var(--muted); font-size: .78em; text-transform: uppercase; letter-spacing: .1em; }

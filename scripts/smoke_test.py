@@ -456,5 +456,94 @@ assert game.serial_commands_for_phase() == ["5", "9", f"B {mask}"]
 print("OK Stichfrage im Finale: Gleichstand um den Sieg wird ausgespielt")
 set_setting(db, "max_questions_enabled", False)
 
+# --- flexible game plans (compute_plans + plan-aware create_game) ---
+set_setting(db, "players_per_round", 4)
+set_setting(db, "num_prerounds", 3)
+cases = {
+    1: [], 4: ["final"], 5: ["semifinal"], 7: ["semifinal"],
+    8: ["semifinal"], 9: ["preround:3"], 11: ["preround:3"], 12: ["preround:3"],
+}
+for m, codes in cases.items():
+    got = [p["code"] for p in game.compute_plans(m, 4, 3)]
+    assert got == codes, (m, got, codes)
+assert [p["code"] for p in game.compute_plans(12, 4, 5)] == ["preround:3", "preround:4"]
+assert [p["code"] for p in game.compute_plans(14, 4, 5)] == ["preround:4"]
+assert [p["code"] for p in game.compute_plans(15, 4, 5)] == ["preround:4", "preround:5"]
+assert game.compute_plans(13, 4, 3) == []  # exceeds n * max_prerounds
+assert game.compute_plans(21, 4, 5) == []
+# semifinal plan warns about sub-2 semis only when everyone advances
+p5 = game.compute_plans(5, 4, 3)[0]
+assert p5["stages"][0]["sizes"] == [3, 2] and p5["warnings"]
+p7 = game.compute_plans(7, 4, 3)[0]
+assert p7["stages"][0]["sizes"] == [4, 3] and not p7["warnings"]
+print("OK Spielpläne: final/semifinal/preround:k für 1-21 Spieler korrekt")
+
+# plan 'final': a single final round
+db.query(RoundPlayer).delete(); db.query(Round).delete()
+db.query(Question).update({Question.used: False})
+game.create_game(db, [p.id for p in db.query(Player).limit(4)], plan="final")
+rounds = db.query(Round).all()
+assert len(rounds) == 1 and rounds[0].type == "final"
+assert db.query(RoundPlayer).filter(
+    RoundPlayer.round_id == rounds[0].id).count() == 4
+game.start_round(db, rounds[0].id)
+game.finish_round(db, rounds[0].id)
+assert not db.query(Round).filter(Round.status != "finished").count()
+print("OK Plan 'final': nur eine Finalrunde")
+
+# plan 'semifinal': 7 players -> 2 semis -> final
+db.query(RoundPlayer).delete(); db.query(Round).delete()
+game.create_game(db, [p.id for p in db.query(Player).limit(7)], plan="semifinal")
+semis = db.query(Round).filter(Round.type == "semifinal").all()
+assert len(semis) == 2
+sizes = sorted(db.query(RoundPlayer).filter(
+    RoundPlayer.round_id == r.id).count() for r in semis)
+assert sizes == [3, 4], sizes
+for r in semis:
+    game.start_round(db, r.id)
+    game.finish_round(db, r.id)
+fin = db.query(Round).filter(Round.type == "final").first()
+assert fin and db.query(RoundPlayer).filter(
+    RoundPlayer.round_id == fin.id).count() == 4
+print("OK Plan 'semifinal': 7 Spieler -> 2 Halbfinale -> Finale")
+
+# plan 'preround:k': 14 players -> 4 prerounds -> semis -> final, no playoff
+db.query(RoundPlayer).delete(); db.query(Round).delete()
+set_setting(db, "num_prerounds", 5)
+ids14 = [p.id for p in db.query(Player).limit(14)]
+game.create_game(db, ids14, plan="preround:4")
+prs = db.query(Round).filter(Round.type == "preround").all()
+assert len(prs) == 4
+sizes = sorted(db.query(RoundPlayer).filter(
+    RoundPlayer.round_id == r.id).count() for r in prs)
+assert sizes == [3, 3, 4, 4], sizes
+src = {}  # player_id -> preround id (for seeding check)
+for r in prs:
+    for rp in db.query(RoundPlayer).filter(RoundPlayer.round_id == r.id):
+        src[rp.player_id] = r.id
+for r in prs:
+    game.start_round(db, r.id)
+    game.finish_round(db, r.id)
+assert len(db.query(Round).filter(Round.type == "semifinal").all()) == 2
+assert not db.query(Round).filter(Round.type == "playoff_presemi").count()
+# seeding: no semifinal contains two players from the same preround
+for s in db.query(Round).filter(Round.type == "semifinal").all():
+    prs_in = [src[rp.player_id] for rp in db.query(RoundPlayer).filter(
+        RoundPlayer.round_id == s.id)]
+    assert len(prs_in) == len(set(prs_in)), prs_in
+for r in db.query(Round).filter(Round.type == "semifinal").all():
+    game.start_round(db, r.id)
+    game.finish_round(db, r.id)
+assert db.query(Round).filter(Round.type == "final").count() == 1
+print("OK Plan 'preround:4': 14 Spieler -> HF -> Finale, gesetzt")
+
+# invalid plan for the count -> rejected
+try:
+    game.create_game(db, ids14, plan="final")
+    raise AssertionError("final plan with 14 players must fail")
+except ValueError:
+    pass
+print("OK Ungültiger Spielplan wird abgelehnt")
+
 db.close()
 print("\nAlle Tests bestanden.")

@@ -54,6 +54,7 @@ class SettingsBody(BaseModel):
     skills_playoff: list[int] | None = None
     skills_semifinal: list[int] | None = None
     skills_final: list[int] | None = None
+    default_pool: str | None = None
 
 
 # ---------------- players ----------------
@@ -145,6 +146,13 @@ def update_settings(body: SettingsBody):
                   "max_questions_semifinal", "max_questions_final"):
             if k in data and not 1 <= data[k] <= 200:
                 raise HTTPException(400, "Max. Fragen muss 1-200 sein")
+        if "default_pool" in data:
+            pool = data["default_pool"]
+            if pool != "standard" and (
+                not pool.startswith("cat:") or not pool[4:].isdigit()
+                or not db.get(Category, int(pool[4:]))
+            ):
+                raise HTTPException(400, "Ungültiger Standard-Pool")
         if "seat_colors" in data:
             import re
             if not data["seat_colors"] or not all(
@@ -160,14 +168,15 @@ def update_settings(body: SettingsBody):
         db.close()
 
 
-@router.get("/preview")
-def bracket_preview(num_players: int):
+@router.get("/plans")
+def game_plans(num_players: int):
+    """Bracket plan options for a given player count."""
     db = next(get_db())
     try:
         s = get_all_settings(db)
-        return game.compute_bracket_preview(
+        return {"plans": game.compute_plans(
             num_players, s["players_per_round"], s["num_prerounds"]
-        )
+        )}
     finally:
         db.close()
 

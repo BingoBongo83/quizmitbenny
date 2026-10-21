@@ -121,11 +121,14 @@ function render(state) {
   wrap.innerHTML = "";
   const seatColors = state.seat_colors && state.seat_colors.length
     ? state.seat_colors : DEFAULT_SEAT_COLORS;
+  // Stichfrage: non-tied players get faded like their buzzers (B <mask>)
+  const tb = (state.round && state.round.tiebreak && state.round.tiebreak_slots) || null;
   state.players.forEach((p) => {
     const d = document.createElement("div");
     d.className = "player-card"
       + (p.buzzed ? " buzzed" : "")
       + (p.blocked ? " blocked" : "")
+      + (tb && !tb.includes(p.slot) ? " tb-out" : "")
       + (isAdmin ? " clickable" : "");
     const hex = seatColors[p.slot - 1] || "#888";
     d.style.setProperty("--slot", hex);
@@ -236,6 +239,17 @@ function render(state) {
       ? (state.round ? "Buzzer bereit"
          : state.quiz_waiting ? "Quiz startet gleich" : "Nächste Runde")
       : "Quiz startet gleich";
+  }
+
+  // audience-joker QR overlay: covers the whole board while voting is open
+  const qr = document.getElementById("qrOverlay");
+  const showQr = !!state.audience_voting;
+  qr.classList.toggle("hidden", !showQr);
+  if (showQr && !qr.dataset.loaded) {
+    const url = location.origin + "/audience";
+    document.getElementById("qrImg").src =
+      "/api/qr.svg?u=" + encodeURIComponent(url);
+    qr.dataset.loaded = "1";
   }
 
   // intermission: game running, no active round, not the pre-game crawl

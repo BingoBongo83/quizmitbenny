@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from ..auth import require_admin
 from ..db import get_db
-from ..models import Category, CustomQuestion
+from ..models import Category, CustomQuestion, get_setting, set_setting
 
 router = APIRouter(prefix="/api/categories", dependencies=[Depends(require_admin)])
 
@@ -92,6 +92,8 @@ def delete_category(cid: int):
         db.query(CustomQuestion).filter(
             CustomQuestion.category_id == cid).delete()
         db.delete(c)
+        if get_setting(db, "default_pool") == f"cat:{cid}":
+            set_setting(db, "default_pool", "standard")
         db.commit()
         return {"ok": True}
     finally:

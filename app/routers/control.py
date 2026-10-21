@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/game", dependencies=[Depends(require_admin)])
 
 class CreateGameBody(BaseModel):
     player_ids: list[int] | None = None
+    plan: str | None = None  # 'final' | 'semifinal' | 'preround:<k>'
     shuffle: bool = True
 
 
@@ -37,24 +38,21 @@ class ReportBody(BaseModel):
 
 @router.post("/create")
 async def create_game(body: CreateGameBody, request: Request):
-    from ..models import Player, get_all_settings
+    from ..models import Player
     db = next(get_db())
     try:
-        ids = body.player_ids
-        if not ids:
-            # auto-pick: first N active players (list order), N = ppr * prerounds
-            s = get_all_settings(db)
-            need = s["players_per_round"] * s["num_prerounds"]
-            ids = [
-                p.id
-                for p in db.query(Player)
-                .filter(Player.active)
-                .order_by(Player.id)
-                .limit(need)
-            ]
-        if not ids:
-            raise HTTPException(400, "Keine aktiven Spieler vorhanden")
-        game.create_game(db, ids, body.shuffle)
+        ids = body.player_ids or [
+            p.id
+            for p in db.query(Player)
+            .filter(Player.active)
+            .order_by(Player.id)
+        ]
+        if len(ids) < 2:
+            raise HTTPException(400, "Mindestens 2 Spieler nötig")
+        try:
+            game.create_game(db, ids, body.plan, body.shuffle)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
     finally:
         db.close()
     await broadcast_state_and_serial()

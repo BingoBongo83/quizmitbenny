@@ -22,8 +22,11 @@ faden in ~3 s aus und sind ignoriert (Stichfrage) – nur mit der Firmware
 
 ## Spielablauf
 
-Vorrunden (3–5, je 3–5 Spieler) → ggf. Playoff → 2 Halbfinals → ggf. Playoff →
-Finale. Direktqualifikation: Top 2 pro Runde (bzw. automatisch angepasst, wenn
+Beim „Spiel erstellen“ werden Mitspieler angehakt und ein Spielplan gewählt –
+die Vorschläge passen sich der Spielerzahl an: bis zu „Spieler pro Runde“
+(n) nur das Finale, bis 2·n zwei Halbfinals + Finale, darüber k Vorrunden →
+2 Halbfinals → Finale (k wählbar, max. „Max. Vorrunden“, Runden ≤ n, Ø ≥ 3).
+Direktqualifikation: Top 2 pro Runde (bzw. automatisch angepasst, wenn
 die Plätze nicht aufgehen); Restplätze per Playoff der Bestplatzierten.
 
 Fragen haben Skill 1–5; pro Rundentyp sind im Setup aktivierbare Level

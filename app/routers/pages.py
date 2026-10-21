@@ -1,7 +1,8 @@
 import hmac
+import io
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from ..auth import check_login, require_admin_page
@@ -25,6 +26,21 @@ def board2(request: Request):
 @router.get("/audience")
 def audience(request: Request):
     return templates.TemplateResponse(request, "audience.html")
+
+
+@router.get("/api/qr.svg")
+def qr_svg(u: str):
+    """QR code (SVG) for an arbitrary short URL – used by the board's
+    audience-joker overlay."""
+    import qrcode
+    import qrcode.image.svg
+    img = qrcode.make(
+        u[:256], image_factory=qrcode.image.svg.SvgPathImage,
+        box_size=12, border=2)
+    buf = io.BytesIO()
+    img.save(buf)
+    return Response(buf.getvalue(), media_type="image/svg+xml",
+                    headers={"Cache-Control": "no-store"})
 
 
 @router.get("/unlock")

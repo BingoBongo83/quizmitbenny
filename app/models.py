@@ -156,6 +156,7 @@ class AdminUser(Base):
 DEFAULT_SETTINGS = {
     "players_per_round": 4,
     "num_prerounds": 3,
+    "default_pool": "standard",  # question pool for newly created rounds
     "points_correct": 2,
     "points_wrong_self": 0,
     "points_wrong_others": 2,

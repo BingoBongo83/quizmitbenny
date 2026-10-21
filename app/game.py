@@ -1,6 +1,8 @@
 """Game engine: bracket computation, state machine, scoring.
 
 Stages: preround -> playoff_presemi -> semifinal -> playoff_prefinal -> final
+A game may start at preround, semifinal or final, depending on the plan
+chosen for the player count (see compute_plans).
 
 Advancement rule (musikquiz style):
 - From each finished source round, the top A players qualify directly,
@@ -130,52 +132,103 @@ def _log_answer(db: Session, q, src: str, outcome: str,
 # Bracket
 # ---------------------------------------------------------------------------
 
-def compute_bracket_preview(num_players: int, players_per_round: int, num_prerounds: int):
-    """Return a textual/structural preview of the tournament."""
+def _even_split(total: int, parts: int) -> list[int]:
+    """Sizes as equal as possible, extras go to the earlier rounds."""
+    base, extra = divmod(total, parts)
+    return [base + (1 if i < extra else 0) for i in range(parts)]
+
+
+def compute_plans(num_players: int, players_per_round: int, max_prerounds: int):
+    """All playable bracket plans for `num_players`, best first.
+
+    Plan codes: 'final' | 'semifinal' | 'preround:<k>'.
+    Rules: every stage must eliminate at least one player, round sizes stay
+    within players_per_round (n), and prerounds average >= 3 players.
+    - m <= n      -> final only
+    - m <= 2n     -> 2 semifinals -> final
+    - m > 2n      -> k prerounds -> 2 semifinals -> final,
+                     k in [ceil(m/n), min(max_prerounds, m//3)]
+    """
     n = players_per_round
-    p = num_prerounds
-    base, extra = divmod(num_players, p)
-    preround_sizes = [base + (1 if i < extra else 0) for i in range(p)]
-    preview = {
-        "prerounds": preround_sizes,
-        "semifinals": [n, n],
-        "final": n,
-        "warnings": [],
-        "playoffs": [],
-    }
-    if any(sz < n for sz in preround_sizes):
-        preview["warnings"].append(
-            f"Nicht alle Vorrunden sind voll ({'/'.join(map(str, preround_sizes))} "
-            f"statt {n}) – ggf. Vorrunden-Anzahl oder Spielerzahl anpassen"
-        )
-    if any(sz < 2 for sz in preround_sizes):
-        preview["warnings"].append(
-            "Mindestens eine Vorrunde hätte nur 1 Spieler – unsinnig!"
-        )
-    spots_semi = 2 * n
-    direct_per_round = min(2, spots_semi // p) if p else 2
-    direct = direct_per_round * p
-    if direct < spots_semi:
-        preview["playoffs"].append(
-            f"Playoff vor Halbfinale: beste {min(n, num_players - direct)} "
-            f"verbleibenden Spieler um {spots_semi - direct} Plätze"
-        )
-    elif direct > spots_semi:
-        preview["warnings"].append(
-            f"{direct} Direktqualifikanten für {spots_semi} Halbfinal-Plätze – "
-            "Playoff der Zweitplatzierten wird erstellt"
-        )
-    # semifinal -> final
-    a2 = min(2, n // 2)
-    if 2 * a2 < n:
-        preview["playoffs"].append(
-            f"Playoff vor Finale: {n - 2 * a2} Finalplatz/Plätze per Playoff"
-        )
-    return preview
+    m = num_players
+    plans = []
+    if m >= 2 and n >= 2:
+        if m <= n:
+            plans.append({
+                "code": "final",
+                "label": "Nur Finale",
+                "stages": [{"type": "final", "label": "Finale",
+                            "sizes": [m]}],
+                "playoffs": [], "warnings": [],
+            })
+        elif m <= 2 * n:
+            sizes = _even_split(m, 2)
+            a2 = min(2, n // 2)
+            warnings = ([
+                "Halbfinale mit sehr wenigen Spielern – dort kommen alle direkt weiter"
+            ] if any(sz <= a2 for sz in sizes) else [])
+            playoffs = []
+            if 2 * a2 < n:
+                playoffs.append(
+                    f"Playoff vor Finale: {n - 2 * a2} Finalplatz/Plätze "
+                    "per Playoff")
+            plans.append({
+                "code": "semifinal",
+                "label": "2 Halbfinale + Finale",
+                "stages": [{"type": "semifinal", "label": "Halbfinale",
+                            "sizes": sizes},
+                           {"type": "final", "label": "Finale",
+                            "sizes": [n]}],
+                "playoffs": playoffs, "warnings": warnings,
+            })
+        else:
+            lo = -(-m // n)  # smallest k so rounds stay <= n players
+            hi = min(max_prerounds, m // 3)  # avg >= 3 per preround
+            spots_semi = 2 * n
+            a2 = min(2, n // 2)
+            for k in range(lo, hi + 1):
+                sizes = _even_split(m, k)
+                playoffs, warnings = [], []
+                dpr = min(2, spots_semi // k)
+                direct = dpr * k
+                if direct < spots_semi:
+                    playoffs.append(
+                        f"Playoff vor Halbfinale: beste "
+                        f"{min(n, m - direct)} verbleibenden Spieler um "
+                        f"{spots_semi - direct} Plätze")
+                elif direct > spots_semi:
+                    warnings.append(
+                        f"{direct} Direktqualifikanten für {spots_semi} "
+                        "Halbfinal-Plätze – Playoff der Zweitplatzierten")
+                if 2 * a2 < n:
+                    playoffs.append(
+                        f"Playoff vor Finale: {n - 2 * a2} "
+                        "Finalplatz/Plätze per Playoff")
+                plans.append({
+                    "code": f"preround:{k}",
+                    "label": f"{k} Vorrunden + Halbfinale + Finale",
+                    "stages": [
+                        {"type": "preround", "label": "Vorrunde",
+                         "sizes": sizes},
+                        {"type": "semifinal", "label": "Halbfinale",
+                         "sizes": [n, n]},
+                        {"type": "final", "label": "Finale",
+                         "sizes": [n]},
+                    ],
+                    "playoffs": playoffs, "warnings": warnings,
+                })
+    if plans:
+        plans[0]["recommended"] = True
+    return plans
 
 
-def create_game(db: Session, player_ids: list[int], shuffle: bool = True):
-    """Create prerounds and assign players. player_ids = chosen players."""
+def create_game(db: Session, player_ids: list[int], plan: str | None = None,
+                shuffle: bool = True):
+    """Create the first stage's rounds and assign players.
+
+    plan: 'final' | 'semifinal' | 'preround:<k>' | None (= recommended plan
+    for the player count). Raises ValueError when no plan fits.
+    """
     with _lock:
         db.query(RoundPlayer).delete()
         db.query(Round).delete()
@@ -185,25 +238,28 @@ def create_game(db: Session, player_ids: list[int], shuffle: bool = True):
         )
         s = get_all_settings(db)
         n = s["players_per_round"]
-        p = s["num_prerounds"]
 
         ids = list(player_ids)
         if shuffle:
             random.shuffle(ids)
-        base, extra = divmod(len(ids), p)
+
+        plans = compute_plans(len(ids), n, s["num_prerounds"])
+        if not plans:
+            raise ValueError(
+                f"Kein Spielplan für {len(ids)} Spieler möglich "
+                f"(max. {n * s['num_prerounds']})")
+        chosen = next((p for p in plans if p["code"] == plan), None)
+        if chosen is None:
+            if plan is not None:
+                raise ValueError(
+                    f"Spielplan '{plan}' passt nicht zur Spielerzahl")
+            chosen = plans[0]
+
+        first = chosen["stages"][0]
         idx = 0
-        number = 1
-        for i in range(p):
-            size = base + (1 if i < extra else 0)
-            rnd = Round(number=number, type="preround", status="pending",
-                        skill_levels=s["skills_preround"])
-            db.add(rnd)
-            db.flush()
-            for slot in range(size):
-                db.add(RoundPlayer(round_id=rnd.id, player_id=ids[idx],
-                                   slot=slot + 1, score=0))
-                idx += 1
-            number += 1
+        for number, size in enumerate(first["sizes"], start=1):
+            _add_round(db, first["type"], number, ids[idx: idx + size], s)
+            idx += size
 
         _state.update({
             "phase": "idle", "round_id": None, "question_id": None,
@@ -249,17 +305,38 @@ def _next_number(db: Session) -> int:
     return (last.number + 1) if last else 1
 
 
+_ROUND_SKILL_KEYS = {
+    "semifinal": "skills_semifinal",
+    "final": "skills_final",
+    "playoff_presemi": "skills_playoff",
+    "playoff_prefinal": "skills_playoff",
+    "preround": "skills_preround",
+}
+
+
+def _add_round(db, rtype, number, player_ids, settings):
+    """Create a round from raw player ids (game setup)."""
+    rnd = Round(number=number, type=rtype, status="pending",
+                skill_levels=settings.get(
+                    _ROUND_SKILL_KEYS.get(rtype, "skills_preround"),
+                    [1, 2, 3, 4, 5]),
+                question_pool=settings.get("default_pool") or "standard")
+    db.add(rnd)
+    db.flush()
+    for slot, pid in enumerate(player_ids, start=1):
+        db.add(RoundPlayer(round_id=rnd.id, player_id=pid,
+                           slot=slot, score=0))
+    return rnd
+
+
 def _create_round(db, rtype, players, number=None):
+    """Create a round from RoundPlayer rows (stage advancement)."""
     s = get_all_settings(db)
-    skill_key = {
-        "semifinal": "skills_semifinal",
-        "final": "skills_final",
-        "playoff_presemi": "skills_playoff",
-        "playoff_prefinal": "skills_playoff",
-        "preround": "skills_preround",
-    }.get(rtype, "skills_preround")
     rnd = Round(number=number or _next_number(db), type=rtype, status="pending",
-                skill_levels=s.get(skill_key, [1, 2, 3, 4, 5]))
+                skill_levels=s.get(
+                    _ROUND_SKILL_KEYS.get(rtype, "skills_preround"),
+                    [1, 2, 3, 4, 5]),
+                question_pool=s.get("default_pool") or "standard")
     db.add(rnd)
     db.flush()
     for i, rp in enumerate(players):
@@ -409,6 +486,28 @@ def _read_playoff_advances(db, playoff_id) -> int:
     return int(row.value) if row and row.value else 0
 
 
+def _seeded_buckets(players, num_rounds):
+    """Split qualifying players over num_rounds so players from the same
+    source round land in different target rounds whenever possible
+    (seeding, not a flat shuffle). Buckets stay size-balanced."""
+    groups = {}
+    for rp in players:
+        groups.setdefault(rp.round_id, []).append(rp)
+    gs = list(groups.values())
+    random.shuffle(gs)
+    gs.sort(key=len, reverse=True)  # big groups first – hardest to split
+    buckets = [[] for _ in range(num_rounds)]
+    for g in gs:
+        g.sort(key=lambda rp: (rp.place or 99, -rp.score))  # rank order
+        for rp in g:
+            free = [i for i in range(num_rounds)
+                    if all(x.round_id != rp.round_id for x in buckets[i])]
+            cands = free if free else range(num_rounds)
+            i = min(cands, key=lambda i: len(buckets[i]))
+            buckets[i].append(rp)
+    return buckets
+
+
 def _create_next_rounds(db, rtype, num_rounds):
     """Create next-stage rounds from all rows marked qualified='direct'/'playoff'.
     Those rows get marked 'placed'."""
@@ -419,15 +518,11 @@ def _create_next_rounds(db, rtype, num_rounds):
         .all()
     )
     players = list(pending)
-    random.shuffle(players)
     for rp in players:
         rp.qualified = "placed"
-    base, extra = divmod(len(players), num_rounds)
-    idx = 0
-    for i in range(num_rounds):
-        size = base + (1 if i < extra else 0)
-        _create_round(db, rtype, players[idx: idx + size])
-        idx += size
+    for bucket in _seeded_buckets(players, num_rounds):
+        random.shuffle(bucket)  # seeding decides WHO, not the buzzer seat
+        _create_round(db, rtype, bucket)
     if rtype == "final":
         # finalists get a fresh set of jokers
         for rp in players:
