@@ -128,7 +128,7 @@ function render(state) {
     d.className = "player-card"
       + (p.buzzed ? " buzzed" : "")
       + (p.blocked ? " blocked" : "")
-      + (tb && !tb.includes(p.slot) ? " tb-out" : "")
+      + ((tb && !tb.includes(p.slot)) || p.deactivated ? " tb-out" : "")
       + (isAdmin ? " clickable" : "");
     const hex = seatColors[p.slot - 1] || "#888";
     d.style.setProperty("--slot", hex);

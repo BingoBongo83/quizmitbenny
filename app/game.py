@@ -1076,6 +1076,7 @@ def board_state(db: Session) -> dict:
             "qualified": rp.qualified,
             "blocked": rp.slot in _state["blocked_slots"]
                        or rp.slot in _state["manual_blocked"],
+            "deactivated": rp.slot in (_state.get("deactivated_slots") or []),
             "buzzed": rp.slot == _state["buzzed_slot"],
             "jokers": _state["jokers"].get(
                 str(rp.player_id),

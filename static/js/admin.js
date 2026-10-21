@@ -134,12 +134,13 @@ function render(st) {
   tbl.innerHTML = "<tr><th>Slot</th><th>Spieler</th><th>Joker</th><th>Punkte</th><th></th></tr>" +
     st.players.map((p) => {
       const hex = seatColors[p.slot - 1] || "#888";
-      const tbOut = tiebreak && !(st.round.tiebreak_slots || []).includes(p.slot);
-      return `<tr class="buzzsim ${p.buzzed ? "buzzed" : ""} ${p.blocked ? "blocked" : ""} ${tbOut ? "tb-out" : ""}"
+      const out = (tiebreak && !(st.round.tiebreak_slots || []).includes(p.slot))
+        || p.deactivated;
+      return `<tr class="buzzsim ${p.buzzed ? "buzzed" : ""} ${p.blocked ? "blocked" : ""} ${out ? "tb-out" : ""}"
            data-slot="${p.slot}" title="Klicken = Buzzer simulieren">
         <td>${p.slot} <span class="seat-dot" style="background:${hex};box-shadow:0 0 8px ${hex}"></span></td>
         <td>${esc(p.name)}</td><td>${jkChips(p)}</td><td>${p.score}</td>
-        <td>${p.buzzed ? "GEBUZZERT" : tbOut ? "aus" : p.blocked ? "gesperrt" : ""}</td></tr>`;
+        <td>${p.buzzed ? "GEBUZZERT" : out ? "aus" : p.blocked ? "gesperrt" : ""}</td></tr>`;
     }).join("");
   tbl.querySelectorAll("tr.buzzsim").forEach((row) =>
     (row.onclick = () => QuizWS.send({ type: "buzzer", buzzer: +row.dataset.slot })));
