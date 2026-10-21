@@ -234,11 +234,11 @@ function render(state) {
   } else {
     lastBoardQid = null;
     qbox.classList.add("hidden");
-    idle.classList.remove("hidden");
     idle.textContent = state.game_started
-      ? (state.round ? "Buzzer bereit"
+      ? (state.round ? ""
          : state.quiz_waiting ? "Quiz startet gleich" : "Nächste Runde")
       : "Quiz startet gleich";
+    idle.classList.toggle("hidden", !idle.textContent);
   }
 
   // audience-joker QR overlay: covers the whole board while voting is open
