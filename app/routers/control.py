@@ -31,6 +31,11 @@ class JokerBody(BaseModel):
     kind: str  # 'fifty' | 'double' | 'audience'
 
 
+class BuzzerBody(BaseModel):
+    action: str  # 'reset' | 'block' | 'unblock' | 'deactivate' | 'activate'
+    slot: int | None = None  # 1-5, required except for 'reset'
+
+
 class ReportBody(BaseModel):
     which: str = "current"  # 'current' | 'next'
     qid: int | None = None  # question the moderator saw -> safety pin
@@ -53,6 +58,22 @@ async def create_game(body: CreateGameBody, request: Request):
             game.create_game(db, ids, body.plan, body.shuffle)
         except ValueError as e:
             raise HTTPException(400, str(e))
+    finally:
+        db.close()
+    await broadcast_state_and_serial()
+    return {"ok": True}
+
+
+@router.post("/buzzer")
+async def buzzer_admin(body: BuzzerBody):
+    """Moderator buzzer controls: reset / block / unblock / deactivate / activate."""
+    if body.action not in ("reset", "block", "unblock", "deactivate", "activate"):
+        raise HTTPException(400, "Ungültige Aktion")
+    if body.action != "reset" and not (1 <= (body.slot or 0) <= 5):
+        raise HTTPException(400, "Slot muss 1-5 sein")
+    db = next(get_db())
+    try:
+        game.buzzer_admin(db, body.action, body.slot)
     finally:
         db.close()
     await broadcast_state_and_serial()

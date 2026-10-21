@@ -303,6 +303,28 @@ function render(st) {
   document.getElementById("btnReport").disabled = !(st.question);
   document.getElementById("btnFinish").disabled = !(st.round && st.round.status === "active");
 
+  // buzzer panel (live while the popup is open)
+  const buzz = document.getElementById("buzzRows");
+  const blocked = st.blocked_slots || [];
+  const deact = st.deactivated_slots || [];
+  buzz.innerHTML = "<tr><th>Slot</th><th>Spieler</th><th>Status</th><th></th><th></th></tr>" +
+    [1, 2, 3, 4, 5].map((s) => {
+      const hex = seatColors[s - 1] || "#888";
+      const name = (st.players.find((p) => p.slot === s) || {}).name || "–";
+      const off = deact.includes(s), bl = blocked.includes(s);
+      const status = off ? "aus" : bl ? "gesperrt" : "aktiv";
+      return `<tr class="${off ? "tb-out" : ""}">
+        <td>${s} <span class="seat-dot" style="background:${hex};box-shadow:0 0 8px ${hex}"></span></td>
+        <td>${esc(name)}</td><td>${status}</td>
+        <td>${off ? "" : `<button class="sm" data-bz="${bl ? "unblock" : "block"}:${s}">${bl ? "freigeben" : "sperren"}</button>`}</td>
+        <td><button class="sm" data-bz="${off ? "activate" : "deactivate"}:${s}">${off ? "aktivieren" : "deaktivieren"}</button></td>
+      </tr>`;
+    }).join("");
+  buzz.querySelectorAll("[data-bz]").forEach((b) => (b.onclick = () => {
+    const [action, slot] = b.dataset.bz.split(":");
+    post("/api/game/buzzer", { action, slot: +slot });
+  }));
+
   // sounds on phase transitions (only if this host is the sound target)
   const playHere = (st.sound_target || "board") !== "board";
   if (playHere) {
@@ -355,6 +377,17 @@ document.getElementById("mPrevQs").addEventListener("click", (e) => {
 });
 document.querySelector("#mPrevQs .modalClose").onclick = () =>
   document.getElementById("mPrevQs").classList.add("hidden");
+
+// buzzer-control popup
+document.getElementById("buzzBtn").onclick = () =>
+  document.getElementById("mBuzz").classList.remove("hidden");
+document.getElementById("mBuzz").addEventListener("click", (e) => {
+  if (e.target.id === "mBuzz") e.target.classList.add("hidden");
+});
+document.querySelector("#mBuzz .modalClose").onclick = () =>
+  document.getElementById("mBuzz").classList.add("hidden");
+document.getElementById("buzzReset").onclick = () =>
+  post("/api/game/buzzer", { action: "reset" });
 
 // serial connect button
 const serialBtn = document.getElementById("serialBtn");

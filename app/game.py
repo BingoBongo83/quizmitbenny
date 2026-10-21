@@ -67,6 +67,8 @@ _state = {
     "audience_pick": None,  # majority answer (1-4) after stop
     "locked_answer": None,  # moderator's first click = lock-in, second = judge
     "tiebreak_slots": None,  # Stichfrage: only these slots may buzz (None = all)
+    "manual_blocked": [],   # slots blocked by the moderator (cleared per round)
+    "deactivated_slots": [],  # slots powered off by the moderator (persistent)
     "question_shown_at": None,  # unix ts when current question went on the board
     "game_seq": 0,  # increments per create_game – tags AnswerLog entries
 }
@@ -267,6 +269,7 @@ def create_game(db: Session, player_ids: list[int], plan: str | None = None,
             "pending_question_id": None, "pending_source": None,
             "buzzed_slot": None, "picked_answer": None,
             "correct_answer": None, "blocked_slots": [],
+            "manual_blocked": [],
             "game_started": True,
             "jokers": {str(pid): {"fifty": False, "double": False,
                                  "audience": False} for pid in ids},
@@ -363,6 +366,7 @@ def finish_round(db: Session, round_id: int):
             "buzzed_slot": None,
             "picked_answer": None, "correct_answer": None,
             "blocked_slots": [], "round_id": None,
+            "manual_blocked": [],
             "fifty_hidden": [], "double_active": False,
             "audience_voting": False, "audience_votes": {},
             "audience_result": None, "audience_pick": None,
@@ -545,7 +549,7 @@ def start_round(db: Session, round_id: int):
                        "pending_question_id": None, "pending_source": None,
                        "buzzed_slot": None,
                        "picked_answer": None, "correct_answer": None,
-                       "blocked_slots": [],
+                       "blocked_slots": [], "manual_blocked": [],
                        "fifty_hidden": [], "double_active": False,
                        "audience_voting": False, "audience_votes": {},
                        "audience_result": None, "audience_pick": None,
@@ -885,7 +889,9 @@ def buzzer_pressed(db: Session, buzzer_num: int):
         tb = _state.get("tiebreak_slots")
         if tb and buzzer_num not in tb:
             return buzzer_num, False
-        if buzzer_num in _state["blocked_slots"]:
+        if (buzzer_num in _state["blocked_slots"]
+                or buzzer_num in _state["manual_blocked"]
+                or buzzer_num in (_state.get("deactivated_slots") or [])):
             return buzzer_num, False
         players = _active_round_players(db)
         slots = {rp.slot for rp in players}
@@ -955,6 +961,28 @@ def pick_answer(db: Session, answer_idx: int):
         return correct, q
 
 
+def buzzer_admin(db: Session, action: str, slot: int):
+    """Moderator buzzer controls. action: reset|block|unblock|deactivate|activate"""
+    with _lock:
+        if action == "block":
+            if slot not in _state["manual_blocked"]:
+                _state["manual_blocked"].append(slot)
+        elif action == "unblock":
+            _state["manual_blocked"] = [
+                s for s in _state["manual_blocked"] if s != slot]
+            _state["blocked_slots"] = [
+                s for s in _state["blocked_slots"] if s != slot]
+        elif action == "deactivate":
+            deact = set(_state.get("deactivated_slots") or [])
+            deact.add(slot)
+            _state["deactivated_slots"] = sorted(deact)
+        elif action == "activate":
+            _state["deactivated_slots"] = [
+                s for s in (_state.get("deactivated_slots") or []) if s != slot]
+        # 'reset': no state change – broadcast re-sends the arm commands
+        _persist_state(db)
+
+
 def unshow_question(db: Session):
     """Hide the current question, keep scores (back to idle)."""
     with _lock:
@@ -993,33 +1021,34 @@ def serial_commands_for_phase():
     (like musikquiz does) so the strip keeps idling red, not only when a
     question is armed."""
     phase = _state["phase"]
-    blocked = _state["blocked_slots"][0] if _state["blocked_slots"] else None
-    block_cmd = str(blocked - 1) if blocked else None
-    # Stichfrage: 'B <mask>' fades all non-participating buzzers out (~3 s)
-    # (new firmware command – harmless no-op on the musikquiz sketch)
-    off_cmd = None
+    blocked = sorted(set(_state["blocked_slots"])
+                     | set(_state.get("manual_blocked") or []))
+    block_cmds = [str(s - 1) for s in blocked]  # 0-based slot digits
+    # 'B <mask>' fades buzzers out (~3 s): non-participating in a Stichfrage
+    # plus moderator-deactivated slots (new firmware command – harmless
+    # no-op on the musikquiz sketch)
+    off = set(_state.get("deactivated_slots") or [])
     tb = _state.get("tiebreak_slots")
     if tb:
-        off_mask = sum(1 << (s - 1) for s in range(1, 6) if s not in tb)
-        off_cmd = f"B {off_mask}"
+        off |= {s for s in range(1, 6) if s not in tb}
+    off_cmd = f"B {sum(1 << (s - 1) for s in off)}" if off else None
     if phase == "question":
         cmds = ["5"]  # reset
-        cmds.append(block_cmd or "9")  # 0-based block | all active
+        cmds += block_cmds or ["9"]  # 0-based blocks | all active
         if off_cmd:
             cmds.append(off_cmd)
         return cmds
     if phase == "resolved":
         picked, correct = _state["picked_answer"], _state["correct_answer"]
         cmds = ["G" if picked == correct else "R"]
-        if block_cmd:
-            cmds.append(block_cmd)
+        cmds += block_cmds
         if off_cmd:
             cmds.append(off_cmd)
         return cmds
     if phase == "idle":
         # "9" on every idle (round start, hide, skip, finish) lifts the
         # off-mask too, so buzzers fade back to green right away
-        cmds = ["5", block_cmd or "9"]
+        cmds = ["5"] + (block_cmds or ["9"])
         if off_cmd:
             cmds.append(off_cmd)
         return cmds
@@ -1045,7 +1074,8 @@ def board_state(db: Session) -> dict:
             "score": rp.score,
             "place": rp.place,
             "qualified": rp.qualified,
-            "blocked": rp.slot in _state["blocked_slots"],
+            "blocked": rp.slot in _state["blocked_slots"]
+                       or rp.slot in _state["manual_blocked"],
             "buzzed": rp.slot == _state["buzzed_slot"],
             "jokers": _state["jokers"].get(
                 str(rp.player_id),
@@ -1160,4 +1190,8 @@ def admin_state(db: Session) -> dict:
             d["category"] = cat.name if cat else ""
         prev.append(d)
     st["previous_questions"] = prev
+    # effective buzzer status for the moderator's buzzer panel
+    st["blocked_slots"] = sorted(
+        set(_state["blocked_slots"]) | set(_state.get("manual_blocked") or []))
+    st["deactivated_slots"] = _state.get("deactivated_slots") or []
     return st
