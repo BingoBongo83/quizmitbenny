@@ -238,12 +238,15 @@ function render(st) {
     nq.innerHTML = `<b>Nächste Frage (Vorschau):</b> ${esc(st.next_question.text)}<br>` +
       `<span class="muted">Richtig: ${LETTERS[st.next_question.correct - 1]} – ` +
       `${esc(st.next_question.answers[st.next_question.correct - 1])} (Skill ${st.next_question.skill}) ` +
-      `<a href="#" id="reportNext" style="color:var(--red)">melden</a></span>`;
+      `<a href="#" id="reportNext" style="color:var(--red)">Vorschau melden</a></span>`;
     const rn = document.getElementById("reportNext");
     if (rn) rn.onclick = async (e) => {
       e.preventDefault();
-      if (await Dlg.confirm(`Vorschau-Frage melden und aus dem Pool nehmen?\n\n„${st.next_question.text}“`))
-        post("/api/game/question/report", { which: "next", qid: st.next_question.id });
+      if (await Dlg.confirm(`Die VORSCHAU-Frage (nicht die aktuelle!) melden und aus dem Pool nehmen?\n\n„${st.next_question.text}“`))
+        post("/api/game/question/report", {
+          which: "next", qid: st.next_question.id,
+          src: ("category_id" in st.next_question) ? "c" : "q",
+        });
     };
   } else {
     nq.textContent = "";
@@ -363,7 +366,10 @@ document.getElementById("btnReport").onclick = async () => {
   const q = lastState && lastState.question;
   if (!q) return;
   if (await Dlg.confirm(`Frage als fehlerhaft melden? Sie wird aus allen Pools genommen und ist in Einstellungen → Gemeldete Fragen sichtbar.\n\n„${q.text}“`))
-    post("/api/game/question/report", { which: "current", qid: q.id });
+    post("/api/game/question/report", {
+      which: "current", qid: q.id,
+      src: ("category_id" in q) ? "c" : "q",
+    });
 };
 document.getElementById("btnFinish").onclick = async () => {
   if (lastState && lastState.round && await Dlg.confirm("Runde wirklich beenden?"))

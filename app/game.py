@@ -764,21 +764,24 @@ def skip_question(db: Session):
         _persist_state(db)
 
 
-def report_question(db: Session, which: str = "current", qid: int | None = None):
+def report_question(db: Session, which: str = "current",
+                    qid: int | None = None, src: str | None = None):
     """Moderator flags a question as broken -> excluded from all pools.
     'current': the shown question is reported and hidden (no scoring).
     'next': the previewed pending question is reported and re-picked.
-    qid pins the report to the question the moderator actually saw –
+    qid+src pin the report to the question the moderator actually saw –
     if it no longer matches (state moved on in the meantime) we refuse
     instead of flagging a different question."""
     with _lock:
         if which == "next":
             if not _state["pending_question_id"]:
                 return False, "Keine Vorschau-Frage"
-            if qid is not None and _state["pending_question_id"] != qid:
+            psrc = _state.get("pending_source") or "q"
+            if (qid is not None and _state["pending_question_id"] != qid
+                    or src is not None and psrc != src):
                 return False, "Vorschau hat sich geändert – bitte neu versuchen"
             qid = _state["pending_question_id"]
-            q = db.get(_model_for(_state.get("pending_source") or "q"), qid)
+            q = db.get(_model_for(psrc), qid)
             if q:
                 q.reported = True
             _state["pending_question_id"] = None
@@ -790,10 +793,11 @@ def report_question(db: Session, which: str = "current", qid: int | None = None)
             return True, None
         if not _state["question_id"]:
             return False, "Keine aktive Frage"
-        if qid is not None and _state["question_id"] != qid:
+        qsrc = _state.get("question_source") or "q"
+        if (qid is not None and _state["question_id"] != qid
+                or src is not None and qsrc != src):
             return False, "Aktive Frage hat sich geändert – bitte neu versuchen"
-        q = db.get(_model_for(_state.get("question_source") or "q"),
-                   _state["question_id"])
+        q = db.get(_model_for(qsrc), _state["question_id"])
         if q:
             q.reported = True
         _state.update({
