@@ -109,6 +109,30 @@ function buzz(slot) {
   QuizWS.send({ type: "buzzer", buzzer: slot });
 }
 
+// ---------- countdown joker (visual only) ----------
+let cdTimer = null;
+function renderCountdown(state) {
+  const ov = document.getElementById("cdOverlay");
+  const num = document.getElementById("cdNum");
+  clearInterval(cdTimer); cdTimer = null;
+  if (!state.countdown_end) { ov.classList.add("hidden"); return; }
+  if (state._srvOffset === undefined)
+    state._srvOffset = (state.server_now || 0) - Date.now() / 1000;
+  const tick = () => {
+    const rem = Math.ceil(state.countdown_end - (Date.now() / 1000 + state._srvOffset));
+    if (rem <= 0) {
+      ov.classList.add("hidden");
+      clearInterval(cdTimer); cdTimer = null;
+      return;
+    }
+    num.textContent = rem;
+    num.classList.toggle("warn", rem <= 5);
+    ov.classList.remove("hidden");
+  };
+  tick();
+  if (!ov.classList.contains("hidden")) cdTimer = setInterval(tick, 200);
+}
+
 // ---------- render ----------
 function render(state) {
   lastState = state;
@@ -134,8 +158,11 @@ function render(state) {
     d.style.setProperty("--slot", hex);
     d.style.setProperty("--slot-glow", hex + "66");  // 40% alpha
     const pop = prevScores[p.slot] !== undefined && prevScores[p.slot] !== p.score;
-    const JICON = { fifty: "50", double: "2×", audience: "👥" };
-    const JTIP = { fifty: "50:50", double: "Doppelte Punkte", audience: "Publikumsjoker" };
+    const JICON = { fifty: "50", double: "2×", audience: "👥",
+                    countdown: "⏱", sicher: "🛡", retry: "🔁" };
+    const JTIP = { fifty: "50:50", double: "Doppelte Punkte",
+                   audience: "Publikumsjoker", countdown: "Bedenkzeit",
+                   sicher: "Sicherheit", retry: "Zweite Chance" };
     const jk = (state.jokers_enabled || [])
       .map((k) => `<span class="jchip ${k} ${(p.jokers || {})[k] ? "used" : ""}"
         title="${JTIP[k]}">${JICON[k]}</span>`)
@@ -197,6 +224,8 @@ function render(state) {
         }
         if (state.locked_answer === i + 1 && state.phase === "buzzed")
           d.classList.add("locked");
+        if (i + 1 === state.retry_wrong && state.phase === "buzzed")
+          d.classList.add("retry-wrong");
         const bar = apct.length
           ? `<div class="abar" style="width:${apct[i]}%"></div>` : "";
         const pct = apct.length ? `<span class="apct">${apct[i]}%</span>` : "";
@@ -240,6 +269,9 @@ function render(state) {
       : "Quiz startet gleich";
     idle.classList.toggle("hidden", !idle.textContent);
   }
+
+  // countdown joker: fullscreen ticking overlay (visual only)
+  renderCountdown(state);
 
   // audience-joker QR overlay: covers the whole board while voting is open
   const qr = document.getElementById("qrOverlay");

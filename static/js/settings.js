@@ -281,6 +281,10 @@ async function loadSettings() {
   rp.disabled = reveal !== "seq";
   document.getElementById("s_jfifty").checked = settings.joker_fifty !== false;
   document.getElementById("s_jdouble").checked = settings.joker_double !== false;
+  document.getElementById("s_j2kind").value = settings.joker2_kind || "double";
+  document.getElementById("s_j2sec").value = settings.joker2_seconds ?? 30;
+  document.getElementById("s_j2secRow").classList.toggle(
+    "hidden", (settings.joker2_kind || "double") !== "countdown");
   document.getElementById("s_jaudience").checked = settings.joker_audience !== false;
 
   const mqVals = MAXQ_STAGES.map(maxqVal);
@@ -339,6 +343,8 @@ async function saveAllSettings(btn) {
     ])),
     joker_fifty: document.getElementById("s_jfifty").checked,
     joker_double: document.getElementById("s_jdouble").checked,
+    joker2_kind: document.getElementById("s_j2kind").value,
+    joker2_seconds: +document.getElementById("s_j2sec").value || 30,
     joker_audience: document.getElementById("s_jaudience").checked,
     seat_colors: [...document.querySelectorAll(".seatSel")].map((s) => s.value),
   };
@@ -351,6 +357,9 @@ async function saveAllSettings(btn) {
   closeModal(btn);
   loadSettings(); loadPreview();
 }
+document.getElementById("s_j2kind").onchange = () =>
+  document.getElementById("s_j2secRow").classList.toggle(
+    "hidden", document.getElementById("s_j2kind").value !== "countdown");
 document.getElementById("saveSettings").onclick = (e) => saveAllSettings(e.target);
 document.getElementById("saveSeats").onclick = (e) => saveAllSettings(e.target);
 document.getElementById("saveSkills").onclick = (e) => saveAllSettings(e.target);

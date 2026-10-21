@@ -86,6 +86,30 @@ function esc(s) {
   return d.innerHTML;
 }
 
+// ---------- countdown joker (visual only) ----------
+let cdTimer = null;
+function renderCountdown(st) {
+  const ov = document.getElementById("cdOverlay");
+  const num = document.getElementById("cdNum");
+  clearInterval(cdTimer); cdTimer = null;
+  if (!st.countdown_end) { ov.classList.add("hidden"); return; }
+  if (st._srvOffset === undefined)
+    st._srvOffset = (st.server_now || 0) - Date.now() / 1000;
+  const tick = () => {
+    const rem = Math.ceil(st.countdown_end - (Date.now() / 1000 + st._srvOffset));
+    if (rem <= 0) {
+      ov.classList.add("hidden");
+      clearInterval(cdTimer); cdTimer = null;
+      return;
+    }
+    num.textContent = rem;
+    num.classList.toggle("warn", rem <= 5);
+    ov.classList.remove("hidden");
+  };
+  tick();
+  if (!ov.classList.contains("hidden")) cdTimer = setInterval(tick, 200);
+}
+
 function render(st) {
   lastState = st;
   document.getElementById("phaseBadge").textContent = st.phase;
@@ -126,8 +150,11 @@ function render(st) {
   const tbl = document.getElementById("curPlayers");
   const seatColors = (st.seat_colors && st.seat_colors.length) ? st.seat_colors : [];
   const jkEnabled = st.jokers_enabled || [];
-  const JICON = { fifty: "50", double: "2×", audience: "👥" };
-  const JTIP = { fifty: "50:50", double: "Doppelte Punkte", audience: "Publikumsjoker" };
+  const JICON = { fifty: "50", double: "2×", audience: "👥",
+                  countdown: "⏱", sicher: "🛡", retry: "🔁" };
+  const JTIP = { fifty: "50:50", double: "Doppelte Punkte",
+                 audience: "Publikumsjoker", countdown: "Bedenkzeit",
+                 sicher: "Sicherheit", retry: "Zweite Chance" };
   const jkChips = (p) => jkEnabled.map((k) =>
     `<span class="jchip ${k} ${(p.jokers || {})[k] ? "used" : ""}"
       title="${JTIP[k]}">${JICON[k]}</span>`).join("");
@@ -165,12 +192,14 @@ function render(st) {
       }
       if (hidden.includes(i + 1)) cls += " fifty-hidden";
       if (locked === i + 1) cls += " locked";
+      if (i + 1 === st.retry_wrong && st.phase === "buzzed") cls += " retry-wrong";
       b.className = cls;
       b.innerHTML = `<span class="letter">${LETTERS[i]}</span>${esc(a)}` +
         (i + 1 === st.question.correct ? " ✓" : "") +
         (apct.length ? ` <span class="apct-admin">${apct[i]}%</span>` : "") +
         (locked === i + 1 ? ` <span class="badge">eingeloggt</span>` : "");
       b.disabled = st.phase !== "buzzed" || hidden.includes(i + 1)
+        || i + 1 === st.retry_wrong
         || st.audience_voting || (locked && locked !== i + 1);
       b.onclick = () => post("/api/game/answer", { answer: i + 1 });
       btns.appendChild(b);
@@ -205,7 +234,10 @@ function render(st) {
         none.textContent = " keine übrig";
         jb.appendChild(none);
       }
-      const BTN_LABEL = { fifty: "50:50", double: "2× Punkte", audience: "👥 Publikum" };
+      const BTN_LABEL = {
+        fifty: "50:50", double: "2× Punkte", audience: "👥 Publikum",
+        countdown: "⏱ Bedenkzeit", sicher: "🛡 Sicherheit", retry: "🔁 2. Chance",
+      };
       avail.forEach((k) => {
         const b = document.createElement("button");
         b.className = "joker-btn";
@@ -306,6 +338,9 @@ function render(st) {
   document.getElementById("btnHide").disabled = !(st.question);
   document.getElementById("btnReport").disabled = !(st.question);
   document.getElementById("btnFinish").disabled = !(st.round && st.round.status === "active");
+
+  // countdown joker overlay (visual only)
+  renderCountdown(st);
 
   // buzzer panel (live while the popup is open)
   const buzz = document.getElementById("buzzRows");

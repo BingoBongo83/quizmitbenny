@@ -61,6 +61,10 @@ _state = {
     "jokers": {},
     "fifty_hidden": [],     # answer indexes (0-3) hidden by the 50:50 joker
     "double_active": False,  # current question counts double
+    "countdown_end": None,  # epoch: countdown joker ends (visual only)
+    "sicher_active": False,  # wrong answer gives no points to others
+    "retry_active": False,   # second-chance joker armed for this question
+    "retry_wrong": None,     # first wrong pick under Zweite Chance (dead answer)
     "audience_voting": False,  # /audience voting open
     "audience_votes": {},   # voter_id -> answer 1-4
     "audience_result": None,  # [pct1..4] after the moderator stops voting
@@ -274,6 +278,8 @@ def create_game(db: Session, player_ids: list[int], plan: str | None = None,
             "jokers": {str(pid): {"fifty": False, "double": False,
                                  "audience": False} for pid in ids},
             "fifty_hidden": [], "double_active": False,
+            "countdown_end": None, "sicher_active": False,
+            "retry_active": False, "retry_wrong": None,
             "audience_voting": False, "audience_votes": {},
             "audience_result": None, "audience_pick": None,
             "locked_answer": None, "tiebreak_slots": None,
@@ -368,6 +374,8 @@ def finish_round(db: Session, round_id: int):
             "blocked_slots": [], "round_id": None,
             "manual_blocked": [],
             "fifty_hidden": [], "double_active": False,
+            "countdown_end": None, "sicher_active": False,
+            "retry_active": False, "retry_wrong": None,
             "audience_voting": False, "audience_votes": {},
             "audience_result": None, "audience_pick": None,
             "locked_answer": None, "tiebreak_slots": None,
@@ -551,6 +559,8 @@ def start_round(db: Session, round_id: int):
                        "picked_answer": None, "correct_answer": None,
                        "blocked_slots": [], "manual_blocked": [],
                        "fifty_hidden": [], "double_active": False,
+            "countdown_end": None, "sicher_active": False,
+            "retry_active": False, "retry_wrong": None,
                        "audience_voting": False, "audience_votes": {},
                        "audience_result": None, "audience_pick": None,
                        "locked_answer": None, "tiebreak_slots": None})
@@ -733,6 +743,8 @@ def show_question(db: Session):
             "picked_answer": None,
             "correct_answer": None,
             "fifty_hidden": [], "double_active": False,
+            "countdown_end": None, "sicher_active": False,
+            "retry_active": False, "retry_wrong": None,
             "audience_voting": False, "audience_votes": {},
             "audience_result": None, "audience_pick": None,
             "locked_answer": None,
@@ -756,6 +768,8 @@ def skip_question(db: Session):
             "phase": "idle", "question_id": None, "question_source": None,
             "buzzed_slot": None, "picked_answer": None, "correct_answer": None,
             "fifty_hidden": [], "double_active": False,
+            "countdown_end": None, "sicher_active": False,
+            "retry_active": False, "retry_wrong": None,
             "audience_voting": False, "audience_votes": {},
             "audience_result": None, "audience_pick": None,
             "locked_answer": None,
@@ -804,6 +818,8 @@ def report_question(db: Session, which: str = "current",
             "phase": "idle", "question_id": None, "question_source": None,
             "buzzed_slot": None, "picked_answer": None, "correct_answer": None,
             "fifty_hidden": [], "double_active": False,
+            "countdown_end": None, "sicher_active": False,
+            "retry_active": False, "retry_wrong": None,
             "audience_voting": False, "audience_votes": {},
             "audience_result": None, "audience_pick": None,
             "locked_answer": None,
@@ -813,24 +829,33 @@ def report_question(db: Session, which: str = "current",
         return True, None
 
 
+SLOT2_KINDS = ("double", "countdown", "sicher", "retry")
+
+
 def use_joker(db: Session, kind: str):
-    """Buzzed player uses a joker. kind: fifty|double|audience.
+    """Buzzed player uses a joker. kind: fifty|audience|slot2-kind.
     Returns (ok, error_message)."""
     with _lock:
         if _state["phase"] != "buzzed":
             return False, "Joker nur nach Buzzern möglich"
         s = get_all_settings(db)
-        if not s.get(f"joker_{kind}", False):
+        if kind in SLOT2_KINDS:
+            if kind != s.get("joker2_kind", "double") or not s.get(
+                    "joker_double", True):
+                return False, "Dieser Joker ist deaktiviert"
+        elif not s.get(f"joker_{kind}", False):
             return False, "Dieser Joker ist deaktiviert"
         rps = _active_round_players(db)
         rp = next((r for r in rps if r.slot == _state["buzzed_slot"]), None)
         if not rp:
             return False, "Kein gebuzzerter Spieler"
         jk = _state["jokers"].setdefault(
-            str(rp.player_id), {"fifty": False, "double": False, "audience": False})
-        if jk.get(kind):
+            str(rp.player_id), {"fifty": False, "double": False,
+                                "audience": False})
+        if jk.get(kind) or (kind in SLOT2_KINDS
+                            and any(jk.get(k) for k in SLOT2_KINDS)):
             return False, "Joker bereits verbraucht"
-        jk[kind] = True
+        jk[kind] = True  # only one slot-2 kind per game is enabled anyway
         if kind == "fifty":
             q = get_question(db)
             if q is None:
@@ -839,6 +864,13 @@ def use_joker(db: Session, kind: str):
             _state["fifty_hidden"] = random.sample(wrong, 2)
         elif kind == "double":
             _state["double_active"] = True
+        elif kind == "countdown":
+            _state["countdown_end"] = (
+                time.time() + int(s.get("joker2_seconds") or 30))
+        elif kind == "sicher":
+            _state["sicher_active"] = True
+        elif kind == "retry":
+            _state["retry_active"] = True
         elif kind == "audience":
             _state["audience_voting"] = True
             _state["audience_votes"] = {}
@@ -934,7 +966,23 @@ def pick_answer(db: Session, answer_idx: int):
         slot = _state["buzzed_slot"]
         correct = (answer_idx == q.correct)
 
+        # Zweite Chance: a wrong pick under the retry joker doesn't score –
+        # the same player stays buzzed and may answer once more.
+        if not correct and _state.get("retry_active"):
+            answerer = next(
+                (r for r in _active_round_players(db) if r.slot == slot), None)
+            _log_answer(db, q, _state.get("question_source") or "q",
+                        "wrong", answerer, 0)
+            _state.update({
+                "retry_active": False,
+                "retry_wrong": answer_idx,
+                "countdown_end": None,
+            })
+            _persist_state(db)
+            return "retry", q
+
         mult = 2 if _state["double_active"] else 1
+        sicher = _state.get("sicher_active")
         tie = _state.get("tiebreak_slots")
         rps = _active_round_players(db)
         for rp in rps:
@@ -942,7 +990,7 @@ def pick_answer(db: Session, answer_idx: int):
                 continue  # Stichfrage: only tied players score
             if rp.slot == slot:
                 rp.score += s["points_correct"] * mult if correct else s["points_wrong_self"]
-            elif not correct:
+            elif not correct and not sicher:
                 rp.score += s["points_wrong_others"]
 
         if not correct and s["block_on_wrong"]:
@@ -954,6 +1002,8 @@ def pick_answer(db: Session, answer_idx: int):
             "phase": "resolved",
             "picked_answer": answer_idx,
             "correct_answer": q.correct,
+            "countdown_end": None, "sicher_active": False,
+            "retry_active": False, "retry_wrong": None,
         })
         answerer = next((r for r in rps if r.slot == slot), None)
         pts = (s["points_correct"] * mult if correct
@@ -995,6 +1045,8 @@ def unshow_question(db: Session):
             "buzzed_slot": None,
             "picked_answer": None, "correct_answer": None,
             "fifty_hidden": [], "double_active": False,
+            "countdown_end": None, "sicher_active": False,
+            "retry_active": False, "retry_wrong": None,
             "audience_voting": False, "audience_votes": {},
             "audience_result": None, "audience_pick": None,
             "locked_answer": None,
@@ -1057,6 +1109,15 @@ def serial_commands_for_phase():
             cmds.append(off_cmd)
         return cmds
     return []
+
+
+def _jokers_enabled(db: Session) -> list:
+    """Joker chips shown to players: fixed slots + configured slot-2 kind."""
+    s = get_all_settings(db)
+    out = [k for k in ("fifty", "audience") if s.get(f"joker_{k}")]
+    if s.get("joker_double", True):
+        out.insert(1, s.get("joker2_kind") or "double")
+    return out
 
 
 def board_state(db: Session) -> dict:
@@ -1133,9 +1194,11 @@ def board_state(db: Session) -> dict:
         "audience_result": _state["audience_result"],
         "audience_pick": _state["audience_pick"],
         "locked_answer": _state["locked_answer"],
-        "jokers_enabled": [
-            k for k in ("fifty", "double", "audience")
-            if get_setting(db, f"joker_{k}")],
+        "countdown_end": _state.get("countdown_end"),
+        "sicher_active": _state.get("sicher_active"),
+        "retry_active": _state.get("retry_active"),
+        "retry_wrong": _state.get("retry_wrong"),
+        "jokers_enabled": _jokers_enabled(db),
         "sound_target": get_setting(db, "sound_target", "board"),
         "seat_colors": get_setting(db, "seat_colors"),
         "answer_reveal": get_setting(db, "answer_reveal", "all"),

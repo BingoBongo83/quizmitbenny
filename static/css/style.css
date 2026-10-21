@@ -587,6 +587,30 @@ label.field { display: block; margin: 10px 0 4px; color: var(--muted); font-size
 }
 .qr-title { font-size: 4.5vh; font-weight: 800; color: #141830; margin-bottom: 2.5vh; }
 .qr-img { width: 42vh; height: 42vh; display: block; }
+
+/* countdown joker overlay (board + admin) */
+.cd-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(10, 12, 25, .72);
+  backdrop-filter: blur(2px);
+}
+.cd-num {
+  font-size: 36vh; font-weight: 900; line-height: 1;
+  color: #fff; font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 45px rgba(79, 124, 255, .75);
+}
+.cd-num.warn { color: var(--red); }
+.cd-label {
+  font-size: 3.4vh; color: #aab; margin-top: 2vh;
+  letter-spacing: .2em; text-transform: uppercase;
+}
+.answer.retry-wrong {
+  opacity: .35;
+  border-color: var(--red);
+  text-decoration: line-through;
+}
 .answer.fifty-hidden { opacity: .25; }
 .answer-btns button.fifty-hidden { opacity: .3; border-style: dashed; }
 .answer.audience-pick, .answer-btns button.audience-pick {

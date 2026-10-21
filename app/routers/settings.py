@@ -42,6 +42,8 @@ class SettingsBody(BaseModel):
     seat_colors: list[str] | None = None
     joker_fifty: bool | None = None
     joker_double: bool | None = None
+    joker2_kind: str | None = None
+    joker2_seconds: int | None = None
     joker_audience: bool | None = None
     answer_lockin: bool | None = None
     max_questions_enabled: bool | None = None
@@ -153,6 +155,11 @@ def update_settings(body: SettingsBody):
                 or not db.get(Category, int(pool[4:]))
             ):
                 raise HTTPException(400, "Ungültiger Standard-Pool")
+        if "joker2_kind" in data and data["joker2_kind"] not in (
+                "double", "countdown", "sicher", "retry"):
+            raise HTTPException(400, "Ungültiger Joker-Typ")
+        if "joker2_seconds" in data and not 5 <= data["joker2_seconds"] <= 300:
+            raise HTTPException(400, "Countdown muss 5-300 Sekunden sein")
         if "seat_colors" in data:
             import re
             if not data["seat_colors"] or not all(

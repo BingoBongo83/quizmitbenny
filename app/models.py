@@ -169,7 +169,9 @@ DEFAULT_SETTINGS = {
     # seat (slot) colors — bound to the physical buzzer position, not players
     "seat_colors": ["#2e6bff", "#ffd23c", "#ff8c1a", "#ff5ec4", "#2ee56f"],
     "joker_fifty": True,
-    "joker_double": True,
+    "joker_double": True,  # enable flag for joker slot 2
+    "joker2_kind": "double",  # double|countdown|sicher|retry
+    "joker2_seconds": 30,   # countdown joker duration
     "joker_audience": True,
     # moderator lock-in ("eingeloggt") before judging; audience joker always locks
     "answer_lockin": True,

@@ -196,7 +196,8 @@ async def _auto_hide_resolved(question_id: int, delay: float = 3.0):
 
 @router.post("/joker")
 async def use_joker(body: JokerBody):
-    if body.kind not in ("fifty", "double", "audience"):
+    if body.kind not in ("fifty", "double", "audience",
+                         "countdown", "sicher", "retry"):
         raise HTTPException(400, "Unbekannter Joker")
     db = next(get_db())
     try:
