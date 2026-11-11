@@ -212,40 +212,107 @@ def delete_question(qid: int):
         db.close()
 
 
+_XLSX_HEADERS = {"frage", "text", "question"}
+
+
+def _row_to_item(row):
+    """One import row -> question dict.
+    Columns: text | answer1..4 | correct (1-4) | skill (1-5) | category"""
+    row = ["" if c is None else str(c).strip() for c in row]
+    row += [""] * (8 - len(row))
+    try:
+        return {
+            "text": row[0], "answer1": row[1], "answer2": row[2],
+            "answer3": row[3], "answer4": row[4],
+            "correct": int(float(row[5] or 1)),
+            "skill": int(float(row[6] or 1)),
+            "category": row[7],
+        }
+    except ValueError:
+        raise HTTPException(
+            400, f"Zeile ungültig: {';'.join(row)[:80]}")
+
+
+def _items_from_xlsx(raw: bytes):
+    """Parse an .xlsx upload with the same column layout as the CSV import."""
+    import io
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(
+            io.BytesIO(raw), read_only=True, data_only=True)
+    except Exception:
+        raise HTTPException(400, "Excel-Datei konnte nicht gelesen werden")
+    try:
+        rows = list(wb.active.iter_rows(values_only=True))
+    finally:
+        wb.close()
+    items = []
+    for row in rows:
+        first = str(row[0]).strip() if row and row[0] is not None else ""
+        if not first or first.lower() in _XLSX_HEADERS:
+            continue  # blank rows + header row
+        items.append(_row_to_item(row))
+    return items
+
+
+@router.get("/template.xlsx")
+def download_template():
+    """Sample .xlsx for the question import (header + example rows)."""
+    import io
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Fragen"
+    ws.append(["Frage", "Antwort 1", "Antwort 2", "Antwort 3", "Antwort 4",
+               "Richtig (1-4)", "Skill (1-5)", "Kategorie"])
+    ws.append(["Was ist die Hauptstadt von Frankreich?",
+               "Paris", "London", "Berlin", "Rom", 1, 1, "Geografie"])
+    ws.append(["Wie viele Beine hat eine Spinne?",
+               "6", "8", "10", "12", 2, 2, "Tiere"])
+    ws.append(["Wer sang 'Imagine'?",
+               "Elvis Presley", "John Lennon", "Freddie Mercury",
+               "Michael Jackson", 2, 3, "Musik"])
+    for col, w in zip("ABCDEFGH", (45, 18, 18, 18, 18, 12, 11, 15)):
+        ws.column_dimensions[col].width = w
+    buf = io.BytesIO()
+    wb.save(buf)
+    return Response(
+        buf.getvalue(),
+        media_type="application/vnd.openxmlformats-"
+                   "officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition":
+                 'attachment; filename="fragen_vorlage.xlsx"'},
+    )
+
+
 @router.post("/import")
 async def import_questions(file: UploadFile):
-    """Import JSON: [{"text","answer1"..,"correct","skill","category"}, ...]
-    or CSV: text;answer1;answer2;answer3;answer4;correct;skill;category"""
-    raw = (await file.read()).decode("utf-8-sig")
+    """Import JSON: [{"text","answer1"..,"correct","skill","category"}, ...],
+    ';' CSV, or .xlsx with the same column layout."""
+    raw_bytes = await file.read()
     items = []
     name = (file.filename or "").lower()
-    if name.endswith(".json") or raw.lstrip().startswith("["):
-        try:
-            items = json.loads(raw)
-        except json.JSONDecodeError as e:
-            raise HTTPException(
-                400, f"JSON ungültig: {e.msg} – Zeile {e.lineno}, "
-                     f"Spalte {e.colno}")
-        if not isinstance(items, list):
-            raise HTTPException(400, "JSON muss ein Array von Fragen sein")
+    if name.endswith(".xlsx") or raw_bytes[:4] == b"PK\x03\x04":
+        items = _items_from_xlsx(raw_bytes)
     else:
-        import csv
-        import io
-        reader = csv.reader(io.StringIO(raw), delimiter=";")
-        for row in reader:
-            if not row or not row[0].strip() or row[0].startswith("#"):
-                continue
-            row += [""] * (8 - len(row))
+        raw = raw_bytes.decode("utf-8-sig")
+        if name.endswith(".json") or raw.lstrip().startswith("["):
             try:
-                items.append({
-                    "text": row[0], "answer1": row[1], "answer2": row[2],
-                    "answer3": row[3], "answer4": row[4],
-                    "correct": int(row[5] or 1), "skill": int(row[6] or 1),
-                    "category": row[7],
-                })
-            except ValueError:
+                items = json.loads(raw)
+            except json.JSONDecodeError as e:
                 raise HTTPException(
-                    400, f"CSV ungültig in Zeile: {';'.join(row)[:80]}")
+                    400, f"JSON ungültig: {e.msg} – Zeile {e.lineno}, "
+                         f"Spalte {e.colno}")
+            if not isinstance(items, list):
+                raise HTTPException(400, "JSON muss ein Array von Fragen sein")
+        else:
+            import csv
+            import io
+            reader = csv.reader(io.StringIO(raw), delimiter=";")
+            for row in reader:
+                if not row or not row[0].strip() or row[0].startswith("#"):
+                    continue
+                items.append(_row_to_item(row))
     db = next(get_db())
     count = 0
     try:

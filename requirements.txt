@@ -9,3 +9,4 @@ httpx
 websockets
 pyserial
 qrcode
+openpyxl==3.1.5

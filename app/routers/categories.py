@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from ..auth import require_admin
 from ..db import get_db
 from ..models import Category, CustomQuestion, get_setting, set_setting
+from .questions import _items_from_xlsx
 
 router = APIRouter(prefix="/api/categories", dependencies=[Depends(require_admin)])
 
@@ -161,43 +162,52 @@ def delete_custom_question(cid: int, qid: int):
 
 @router.post("/{cid}/import")
 async def import_custom_questions(cid: int, file: UploadFile):
-    """Same format as the standard import: JSON list or ';' CSV.
-    Fields: text;answer1;answer2;answer3;answer4;correct;skill"""
+    """Same format as the standard import: JSON list, ';' CSV or .xlsx.
+    Fields: text;answer1;answer2;answer3;answer4;correct;skill
+    (.xlsx files in the standard-template layout work too – the
+    'Kategorie' column is simply ignored.)"""
     db = next(get_db())
     try:
         if not db.get(Category, cid):
             raise HTTPException(404, "Kategorie nicht gefunden")
     finally:
         db.close()
-    raw = (await file.read()).decode("utf-8-sig")
+    raw_bytes = await file.read()
     items = []
     name = (file.filename or "").lower()
-    if name.endswith(".json") or raw.lstrip().startswith("["):
-        try:
-            items = json.loads(raw)
-        except json.JSONDecodeError as e:
-            raise HTTPException(
-                400, f"JSON ungültig: {e.msg} – Zeile {e.lineno}, "
-                     f"Spalte {e.colno}")
-        if not isinstance(items, list):
-            raise HTTPException(400, "JSON muss ein Array von Fragen sein")
+    if name.endswith(".xlsx") or raw_bytes[:4] == b"PK\x03\x04":
+        items = [{k: v for k, v in it.items() if k != "category"}
+                 for it in _items_from_xlsx(raw_bytes)]
     else:
-        import csv
-        import io
-        reader = csv.reader(io.StringIO(raw), delimiter=";")
-        for row in reader:
-            if not row or not row[0].strip() or row[0].startswith("#"):
-                continue
-            row += [""] * (7 - len(row))
+        raw = raw_bytes.decode("utf-8-sig")
+        if name.endswith(".json") or raw.lstrip().startswith("["):
             try:
-                items.append({
-                    "text": row[0], "answer1": row[1], "answer2": row[2],
-                    "answer3": row[3], "answer4": row[4],
-                    "correct": int(row[5] or 1), "skill": int(row[6] or 1),
-                })
-            except ValueError:
+                items = json.loads(raw)
+            except json.JSONDecodeError as e:
                 raise HTTPException(
-                    400, f"CSV ungültig in Zeile: {';'.join(row)[:80]}")
+                    400, f"JSON ungültig: {e.msg} – Zeile {e.lineno}, "
+                         f"Spalte {e.colno}")
+            if not isinstance(items, list):
+                raise HTTPException(
+                    400, "JSON muss ein Array von Fragen sein")
+        else:
+            import csv
+            import io
+            reader = csv.reader(io.StringIO(raw), delimiter=";")
+            for row in reader:
+                if not row or not row[0].strip() or row[0].startswith("#"):
+                    continue
+                row += [""] * (7 - len(row))
+                try:
+                    items.append({
+                        "text": row[0], "answer1": row[1], "answer2": row[2],
+                        "answer3": row[3], "answer4": row[4],
+                        "correct": int(row[5] or 1),
+                        "skill": int(row[6] or 1),
+                    })
+                except ValueError:
+                    raise HTTPException(
+                        400, f"CSV ungültig in Zeile: {';'.join(row)[:80]}")
     db = next(get_db())
     count = 0
     try:
