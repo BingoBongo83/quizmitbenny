@@ -208,9 +208,14 @@ function render(st) {
       const p = st.players.find((x) => x.buzzed);
       cqt.innerHTML = `<b>${esc(p ? p.name : "?")} hat gebuzzert!</b><br>` + esc(st.question.text);
     }
+    const cmt = document.getElementById("curQComment");
+    cmt.classList.toggle("hidden", !st.question.comment);
+    if (st.question.comment)
+      cmt.innerHTML = `<b>💡 Kommentar:</b> ${esc(st.question.comment)}`;
   } else {
     cq.textContent = "Keine Frage aktiv";
     cqt.textContent = "";
+    document.getElementById("curQComment").classList.add("hidden");
   }
 
   // joker bar: shown for the buzzed player
@@ -270,7 +275,9 @@ function render(st) {
     nq.innerHTML = `<b>Nächste Frage (Vorschau):</b> ${esc(st.next_question.text)}<br>` +
       `<span class="muted">Richtig: ${LETTERS[st.next_question.correct - 1]} – ` +
       `${esc(st.next_question.answers[st.next_question.correct - 1])} (Skill ${st.next_question.skill}) ` +
-      `<a href="#" id="reportNext" style="color:var(--red)">Vorschau melden</a></span>`;
+      `<a href="#" id="reportNext" style="color:var(--red)">Vorschau melden</a></span>` +
+      (st.next_question.comment
+        ? `<br><span class="qcomment">💡 ${esc(st.next_question.comment)}</span>` : "");
     const rn = document.getElementById("reportNext");
     if (rn) rn.onclick = async (e) => {
       e.preventDefault();
@@ -321,7 +328,9 @@ function render(st) {
   document.getElementById("prevQs").innerHTML = st.previous_questions.length
     ? st.previous_questions.map((q) =>
         `<div style="margin:6px 0"><b>${esc(q.text)}</b><br>
-         <span class="muted">✓ ${LETTERS[q.correct - 1]}: ${esc(q.answers[q.correct - 1])}</span></div>`
+         <span class="muted">✓ ${LETTERS[q.correct - 1]}: ${esc(q.answers[q.correct - 1])}</span>` +
+        (q.comment ? `<br><span class="qcomment">💡 ${esc(q.comment)}</span>` : "") +
+        `</div>`
       ).join("")
     : "–";
 

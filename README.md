@@ -103,7 +103,7 @@ python -m scripts.simulate_buzzer --server ws://localhost:8765
 ## Fragen
 
 - CRUD in den Einstellungen
-- CSV-Import (`;`-getrennt: `text;a1;a2;a3;a4;correct;skill;category`) oder JSON
+- CSV-Import (`;`-getrennt: `text;a1;a2;a3;a4;correct;skill;category;comment`) oder JSON/Excel (.xlsx, Vorlage in der App)
 - OpenTriviaDB-Seed mit Übersetzung ins Deutsche: `AZURE_OPENAI_*` in
   `config.py` (Fallbacks: `OPENAI_API_KEY`, dann `DEEPL_API_KEY`), dann
   `python -m scripts.seed_questions --amount 50` oder Button im UI.

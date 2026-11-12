@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from ..auth import require_admin
-from ..db import get_db
+from ..db import delete_by_id, fetch_tolerant, get_db
 from ..models import Category, CustomQuestion, Question
 
 router = APIRouter(prefix="/api/questions", dependencies=[Depends(require_admin)])
@@ -22,6 +22,7 @@ class QuestionBody(BaseModel):
     correct: int
     skill: int = 1
     category: str = ""
+    comment: str = ""
 
 
 def _validate(body: QuestionBody):
@@ -29,6 +30,28 @@ def _validate(body: QuestionBody):
         raise HTTPException(400, "correct muss 1-4 sein")
     if not 1 <= body.skill <= 5:
         raise HTTPException(400, "skill muss 1-5 sein")
+
+
+def _question_sane(x):
+    """Row materialized AND its text fields are real strings – anything
+    else (decode leftovers, blobs) would break JSON serialization."""
+    return (not getattr(x, "broken", False)
+            and isinstance(getattr(x, "text", None), str)
+            and all(isinstance(getattr(x, f"answer{i}", ""), str)
+                    for i in range(1, 5)))
+
+
+def _question_dict(x):
+    """to_dict incl. correct; corrupt rows render as a deletable
+    placeholder instead of failing the whole list."""
+    if not _question_sane(x):
+        return {"id": x.id,
+                "text": "⚠ Fehlerhafte Frage – bitte löschen",
+                "answers": ["", "", "", ""], "skill": 0,
+                "category": "⚠ defekt", "used": False,
+                "reported": False, "correct": 1, "category_id": None,
+                "comment": "", "broken": True}
+    return x.to_dict(reveal=True) | {"correct": x.correct}
 
 
 @router.get("")
@@ -45,10 +68,10 @@ def list_questions(q: str | None = None, skill: int | None = None,
         if category:
             query = query.filter(Question.category == category)
         total = query.count()
-        items = (query.order_by(Question.id.desc())
-                 .offset(offset).limit(limit).all())
-        return {"total": total, "items": [
-            x.to_dict(reveal=True) | {"correct": x.correct} for x in items]}
+        items = fetch_tolerant(
+            db, query.order_by(Question.id.desc())
+            .offset(offset).limit(limit), Question)
+        return {"total": total, "items": [_question_dict(x) for x in items]}
     finally:
         db.close()
 
@@ -59,15 +82,18 @@ def list_reported():
     db = next(get_db())
     try:
         out = []
-        for q in db.query(Question).filter(Question.reported == True).all():
-            out.append(q.to_dict(reveal=True) | {
-                "correct": q.correct, "source": "q",
-                "pool": q.category or "Standard-Pool"})
-        for q in db.query(CustomQuestion).filter(
-                CustomQuestion.reported == True).all():
-            cat = db.get(Category, q.category_id)
-            out.append(q.to_dict(reveal=True) | {
-                "correct": q.correct, "source": "c",
+        for q in fetch_tolerant(
+                db, db.query(Question).filter(Question.reported == True),
+                Question):
+            out.append(_question_dict(q) | {
+                "source": "q",
+                "pool": getattr(q, "category", None) or "Standard-Pool"})
+        for q in fetch_tolerant(
+                db, db.query(CustomQuestion).filter(
+                    CustomQuestion.reported == True), CustomQuestion):
+            cat = db.get(Category, q.category_id) if q.category_id else None
+            out.append(_question_dict(q) | {
+                "source": "c",
                 "pool": f"Kategorie: {cat.name}" if cat else "Kategorie"})
         out.sort(key=lambda x: x["id"], reverse=True)
         return out
@@ -81,7 +107,14 @@ def reactivate_reported(src: str, qid: int):
     db = next(get_db())
     try:
         model = CustomQuestion if src == "c" else Question
-        q = db.get(model, qid)
+        try:
+            q = db.get(model, qid)
+        except Exception:
+            # corrupt row – clear the flag without materializing it
+            db.query(model).filter(model.id == qid).update(
+                {"reported": False}, synchronize_session=False)
+            db.commit()
+            return {"ok": True}
         if not q:
             raise HTTPException(404)
         q.reported = False
@@ -117,8 +150,11 @@ def export_questions(format: str = "json", skill: int | None = None,
                 {"text": x.text, "answer1": x.answer1, "answer2": x.answer2,
                  "answer3": x.answer3, "answer4": x.answer4,
                  "correct": x.correct, "skill": x.skill,
-                 "category": x.category or ""}
-                for x in q.order_by(Question.id).all()
+                 "category": x.category or "",
+                 "comment": x.comment or ""}
+                for x in fetch_tolerant(
+                    db, q.order_by(Question.id), Question)
+                if not getattr(x, "broken", False)
             ]
         if not cats or cat_ids:
             cat_names = {c.id: c.name for c in db.query(Category).all()}
@@ -131,8 +167,11 @@ def export_questions(format: str = "json", skill: int | None = None,
                 {"text": x.text, "answer1": x.answer1, "answer2": x.answer2,
                  "answer3": x.answer3, "answer4": x.answer4,
                  "correct": x.correct, "skill": x.skill,
-                 "category": cat_names.get(x.category_id, "")}
-                for x in q.order_by(CustomQuestion.id).all()
+                 "category": cat_names.get(x.category_id, ""),
+                 "comment": x.comment or ""}
+                for x in fetch_tolerant(
+                    db, q.order_by(CustomQuestion.id), CustomQuestion)
+                if not getattr(x, "broken", False)
             ]
         if format == "csv":
             import csv
@@ -142,7 +181,7 @@ def export_questions(format: str = "json", skill: int | None = None,
             for it in items:
                 w.writerow([it["text"], it["answer1"], it["answer2"],
                             it["answer3"], it["answer4"], it["correct"],
-                            it["skill"], it["category"]])
+                            it["skill"], it["category"], it["comment"]])
             return Response(
                 buf.getvalue().encode("utf-8-sig"),
                 media_type="text/csv",
@@ -202,10 +241,19 @@ def update_question(qid: int, body: QuestionBody):
 def delete_question(qid: int):
     db = next(get_db())
     try:
-        q = db.get(Question, qid)
+        try:
+            q = db.get(Question, qid)
+        except Exception:
+            q = None
+            broken = True
+        else:
+            broken = False
         if not q:
-            raise HTTPException(404)
-        db.delete(q)
+            if not broken:
+                raise HTTPException(404)
+            delete_by_id(db, Question, qid)
+        else:
+            db.delete(q)
         db.commit()
         return {"ok": True}
     finally:
@@ -217,9 +265,10 @@ _XLSX_HEADERS = {"frage", "text", "question"}
 
 def _row_to_item(row):
     """One import row -> question dict.
-    Columns: text | answer1..4 | correct (1-4) | skill (1-5) | category"""
+    Columns: text | answer1..4 | correct (1-4) | skill (1-5) | category
+    | comment (optional, moderator trivia)"""
     row = ["" if c is None else str(c).strip() for c in row]
-    row += [""] * (8 - len(row))
+    row += [""] * (9 - len(row))
     try:
         return {
             "text": row[0], "answer1": row[1], "answer2": row[2],
@@ -227,6 +276,7 @@ def _row_to_item(row):
             "correct": int(float(row[5] or 1)),
             "skill": int(float(row[6] or 1)),
             "category": row[7],
+            "comment": row[8],
         }
     except ValueError:
         raise HTTPException(
@@ -251,7 +301,8 @@ def _items_from_xlsx(raw: bytes):
         first = str(row[0]).strip() if row and row[0] is not None else ""
         if not first or first.lower() in _XLSX_HEADERS:
             continue  # blank rows + header row
-        items.append(_row_to_item(row))
+        ncols = sum(1 for c in row if c is not None and str(c).strip())
+        items.append((_row_to_item(row), ncols))
     return items
 
 
@@ -264,15 +315,19 @@ def download_template():
     ws = wb.active
     ws.title = "Fragen"
     ws.append(["Frage", "Antwort 1", "Antwort 2", "Antwort 3", "Antwort 4",
-               "Richtig (1-4)", "Skill (1-5)", "Kategorie"])
+               "Richtig (1-4)", "Skill (1-5)", "Kategorie", "Kommentar"])
     ws.append(["Was ist die Hauptstadt von Frankreich?",
-               "Paris", "London", "Berlin", "Rom", 1, 1, "Geografie"])
+               "Paris", "London", "Berlin", "Rom", 1, 1, "Geografie",
+               "Paris liegt an der Seine und ist seit 508 n. Chr. "
+               "Hauptstadt."])
     ws.append(["Wie viele Beine hat eine Spinne?",
-               "6", "8", "10", "12", 2, 2, "Tiere"])
+               "6", "8", "10", "12", 2, 2, "Tiere",
+               "Spinnen sind keine Insekten – Insekten haben 6 Beine."])
     ws.append(["Wer sang 'Imagine'?",
                "Elvis Presley", "John Lennon", "Freddie Mercury",
-               "Michael Jackson", 2, 3, "Musik"])
-    for col, w in zip("ABCDEFGH", (45, 18, 18, 18, 18, 12, 11, 15)):
+               "Michael Jackson", 2, 3, "Musik",
+               "'Imagine' erschien 1971 auf Lennons Soloalbum."])
+    for col, w in zip("ABCDEFGHI", (45, 18, 18, 18, 18, 12, 11, 15, 45)):
         ws.column_dimensions[col].width = w
     buf = io.BytesIO()
     wb.save(buf)
@@ -293,7 +348,7 @@ async def import_questions(file: UploadFile):
     items = []
     name = (file.filename or "").lower()
     if name.endswith(".xlsx") or raw_bytes[:4] == b"PK\x03\x04":
-        items = _items_from_xlsx(raw_bytes)
+        items = [it for it, _ in _items_from_xlsx(raw_bytes)]
     else:
         raw = raw_bytes.decode("utf-8-sig")
         if name.endswith(".json") or raw.lstrip().startswith("["):

@@ -19,6 +19,7 @@ import time
 
 from sqlalchemy.orm import Session
 
+from .db import fetch_tolerant
 from .models import (
     AnswerLog,
     Category,
@@ -581,6 +582,16 @@ def get_question(db: Session):
     return db.get(_model_for(_state.get("question_source")), _state["question_id"])
 
 
+def _fetch_questions(db, query, model):
+    """fetch_tolerant minus rows that can't be materialized or contain
+    non-string fields – a corrupt question must never be picked."""
+    return [q for q in fetch_tolerant(db, query, model)
+            if not getattr(q, "broken", False)
+            and isinstance(getattr(q, "text", None), str)
+            and all(isinstance(getattr(q, f"answer{i}", ""), str)
+                    for i in range(1, 5))]
+
+
 def pick_question(db: Session):
     """Choose a random unused question from the current round's pool.
     Returns (question_obj, source) with source 'q'|'c', or (None, None)."""
@@ -594,35 +605,38 @@ def pick_question(db: Session):
             cat_id = int(pool[4:])
         except ValueError:
             cat_id = -1
-        qs = (
-            db.query(CustomQuestion)
+        qs = _fetch_questions(
+            db, db.query(CustomQuestion)
             .filter(CustomQuestion.used == False,
                     CustomQuestion.reported == False,
                     CustomQuestion.skill.in_(skills),
-                    CustomQuestion.category_id == cat_id)
-            .all()
-        )
+                    CustomQuestion.category_id == cat_id),
+            CustomQuestion)
         if not qs:
             # category exhausted -> any unused custom question
-            qs = db.query(CustomQuestion).filter(
-                CustomQuestion.used == False,
-                CustomQuestion.reported == False).all()
+            qs = _fetch_questions(
+                db, db.query(CustomQuestion).filter(
+                    CustomQuestion.used == False,
+                    CustomQuestion.reported == False), CustomQuestion)
         if not qs:
             # last resort: standard pool
-            qs = db.query(Question).filter(
-                Question.used == False, Question.reported == False).all()
+            qs = _fetch_questions(
+                db, db.query(Question).filter(
+                    Question.used == False,
+                    Question.reported == False), Question)
             return (random.choice(qs), "q") if qs else (None, None)
         return random.choice(qs), "c"
 
-    qs = (
-        db.query(Question)
+    qs = _fetch_questions(
+        db, db.query(Question)
         .filter(Question.used == False, Question.reported == False,
-                Question.skill.in_(skills))
-        .all()
-    )
+                Question.skill.in_(skills)),
+        Question)
     if not qs:
-        qs = db.query(Question).filter(
-            Question.used == False, Question.reported == False).all()
+        qs = _fetch_questions(
+            db, db.query(Question).filter(
+                Question.used == False,
+                Question.reported == False), Question)
     if not qs:
         return None, None
     return random.choice(qs), "q"
@@ -1152,6 +1166,7 @@ def board_state(db: Session) -> dict:
         q = get_question(db)
         if q:
             question = q.to_dict(reveal=_state["phase"] == "resolved")
+            question.pop("comment", None)  # moderator-only info
             if _state.get("question_source") == "c":
                 cat = db.get(Category, q.category_id)
                 question["category"] = cat.name if cat else ""
@@ -1212,10 +1227,11 @@ def board_state(db: Session) -> dict:
 def admin_state(db: Session) -> dict:
     """Extended state for moderator panel."""
     st = board_state(db)
-    # let admin see the current question's correct answer
+    # let admin see the current question's correct answer + comment
     if st["question"]:
         q = get_question(db)
         st["question"]["correct"] = q.correct if q else None
+        st["question"]["comment"] = (q.comment or "") if q else ""
     # next-question preview for the moderator
     st["next_question"] = None
     if _state["pending_question_id"]:

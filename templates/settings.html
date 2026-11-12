@@ -202,6 +202,7 @@
     </div>
     <div class="player-row">
       <textarea id="nq_text" class="autota" rows="1" placeholder="Fragetext"></textarea>
+      <input type="text" id="nq_comment" placeholder="Kommentar (optional)" title="Moderator-Info, wird nach der Antwort gezeigt" style="width:220px">
     </div>
     <div class="player-row">
       <label class="ans-pick"><input type="text" id="nq_a1" placeholder="Antwort 1"><input type="radio" name="nq_correct" value="1" title="richtige Antwort" checked></label>
@@ -240,6 +241,7 @@
       </div>
       <div class="player-row">
         <textarea id="cq_text" class="autota" rows="1" placeholder="Fragetext"></textarea>
+        <input type="text" id="cq_comment" placeholder="Kommentar (optional)" title="Moderator-Info, wird nach der Antwort gezeigt" style="width:220px">
       </div>
       <div class="player-row">
         <label class="ans-pick"><input type="text" id="cq_a1" placeholder="Antwort 1"><input type="radio" name="cq_correct" value="1" title="richtige Antwort" checked></label>
@@ -336,6 +338,8 @@
       <input type="text" id="qe_a4" placeholder="Antwort 4">
       <input type="radio" name="qe_correct" value="4" title="richtige Antwort">
     </div>
+    <label class="field">Kommentar (Moderator-Info, wird nach der Antwort gezeigt)</label>
+    <textarea id="qe_comment" class="autota" rows="1" placeholder="Hintergrundwissen / Auflösungstext für den Moderator"></textarea>
     <label class="field">Schwierigkeit</label>
     <select id="qe_skill"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
     <div class="modal-foot">
@@ -353,5 +357,5 @@
 </div>
 
 <script src="/static/js/dlg.js?v=1"></script>
-<script src="/static/js/settings.js?v=23"></script>
+<script src="/static/js/settings.js?v=25"></script>
 {% endblock %}

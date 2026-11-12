@@ -25,3 +25,34 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+class BrokenRow:
+    """Placeholder for a row that can't be materialized (e.g. invalid
+    bytes in a text column from a charset mismatch). Callers check
+    `row.broken` to skip it or offer deletion by id."""
+    broken = True
+
+    def __init__(self, rid):
+        self.id = rid
+
+
+def fetch_tolerant(db, query, model):
+    """query.all(), but rows that fail to decode become BrokenRow
+    placeholders instead of failing the whole query."""
+    try:
+        return query.all()
+    except Exception:
+        items = []
+        for (rid,) in query.with_entities(model.id).all():
+            try:
+                items.append(db.get(model, rid))
+            except Exception:
+                items.append(BrokenRow(rid))
+        return items
+
+
+def delete_by_id(db, model, rid):
+    """Delete a row without loading it – works even when the row's
+    data can't be decoded (BrokenRow case)."""
+    db.query(model).filter(model.id == rid).delete()

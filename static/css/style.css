@@ -93,6 +93,10 @@ textarea.autota {
 
 h1, h2, h3 { font-weight: 700; }
 .muted { color: var(--muted); }
+tr.qbroken td { color: var(--red); opacity: .8; }
+.qcomment { color: var(--muted); }
+div.qcomment { margin-top: 10px; padding: 8px 12px; border-left: 3px solid var(--gold); }
+.qcmt { cursor: help; }
 .hidden { display: none !important; }
 
 /* ============ BOARD ============ */

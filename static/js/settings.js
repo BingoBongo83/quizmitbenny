@@ -16,6 +16,10 @@ const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// marker shown on questions that carry a moderator comment
+const cmtMark = (x) =>
+  x.comment ? ` <span class="qcmt" title="${esc(x.comment)}">💬</span>` : "";
+
 // auto-growing textareas (question fields): expand up to max-height, then scroll
 const taGrow = (el) => {
   el.style.height = "auto";
@@ -98,6 +102,7 @@ function openQuestionEditor(x, ctx) {
     `input[name="qe_correct"][value="${x.correct}"]`);
   if (r) r.checked = true;
   document.getElementById("qe_skill").value = x.skill;
+  document.getElementById("qe_comment").value = x.comment || "";
   document.getElementById("m-qedit").classList.remove("hidden");
   const ta = document.getElementById("qe_text");
   taGrow(ta);  // needs a visible element for correct scrollHeight
@@ -121,6 +126,7 @@ document.getElementById("qe_save").onclick = async () => {
     answer4: document.getElementById("qe_a4").value,
     correct: checked ? +checked.value : 1,
     skill: +document.getElementById("qe_skill").value,
+    comment: document.getElementById("qe_comment").value.trim(),
   };
   if (!body.text || !body.answer1 || !body.answer2 || !body.answer3 || !body.answer4)
     return Dlg.alert("Frage + alle Antworten ausfüllen");
@@ -464,11 +470,11 @@ async function loadCustomQuestions() {
   const page = qs.slice(cqPage * CQ_PAGE_SIZE, (cqPage + 1) * CQ_PAGE_SIZE);
   document.getElementById("cqTable").innerHTML =
     `<tr><th>Frage</th><th>Skill</th><th>✓</th><th></th></tr>` +
-    (page.map((x) => `<tr>
-      <td>${esc(x.text)}</td><td>${x.skill}</td>
+    (page.map((x) => `<tr${x.broken ? ' class="qbroken"' : ""}>
+      <td>${esc(x.text)}${cmtMark(x)}</td><td>${x.skill}</td>
       <td>${"ABCD"[x.correct - 1]}</td>
       <td>
-        <button class="cqedit" data-qid="${x.id}">edit</button>
+        ${x.broken ? "" : `<button class="cqedit" data-qid="${x.id}">edit</button>`}
         <button class="cqdel danger" data-qid="${x.id}">×</button>
       </td></tr>`).join("") || '<tr><td class="muted">Keine Fragen</td></tr>');
   document.getElementById("cqPager").innerHTML = qs.length > CQ_PAGE_SIZE
@@ -497,11 +503,12 @@ document.getElementById("cq_add").onclick = async () => {
     text: cq_text.value, answer1: cq_a1.value, answer2: cq_a2.value,
     answer3: cq_a3.value, answer4: cq_a4.value,
     correct: checked ? +checked.value : 1, skill: +cq_skill.value,
+    comment: cq_comment.value.trim(),
   };
   if (!body.text || !body[`answer${body.correct}`])
     return Dlg.alert("Frage + richtige Antwort ausfüllen");
   await api(`/api/categories/${activeCat}/questions`, "POST", body);
-  ["cq_text", "cq_a1", "cq_a2", "cq_a3", "cq_a4"].forEach((id) => (document.getElementById(id).value = ""));
+  ["cq_text", "cq_a1", "cq_a2", "cq_a3", "cq_a4", "cq_comment"].forEach((id) => (document.getElementById(id).value = ""));
   document.querySelector('input[name="cq_correct"][value="1"]').checked = true;
   taGrow(document.getElementById("cq_text"));
   loadCustomQuestions(); loadCategories();
@@ -581,11 +588,11 @@ async function loadQuestions() {
   window._qs = qs;
   document.getElementById("questionTable").innerHTML =
     `<tr><th>Frage</th><th>Skill</th><th>Kat.</th><th>✓</th><th></th></tr>` +
-    (qs.map((x) => `<tr>
-      <td>${esc(x.text)}</td><td>${x.skill}</td><td>${esc(x.category)}</td>
+    (qs.map((x) => `<tr${x.broken ? ' class="qbroken"' : ""}>
+      <td>${esc(x.text)}${cmtMark(x)}</td><td>${x.skill}</td><td>${esc(x.category)}</td>
       <td>${"ABCD"[x.correct - 1]}</td>
       <td style="white-space:nowrap">
-        <button class="qedit" data-qid="${x.id}">edit</button>
+        ${x.broken ? "" : `<button class="qedit" data-qid="${x.id}">edit</button>`}
         <button class="qdel danger" data-qid="${x.id}">×</button></td></tr>`).join("")
      || '<tr><td class="muted">Keine Fragen</td></tr>');
   document.querySelectorAll(".qdel").forEach((b) => (b.onclick = async () => {
@@ -629,13 +636,13 @@ async function loadReported() {
   const page = qs.slice(rqPage * RQ_PAGE_SIZE, (rqPage + 1) * RQ_PAGE_SIZE);
   document.getElementById("reportedTable").innerHTML =
     `<tr><th>Frage</th><th>Pool</th><th>✓</th><th></th></tr>` +
-    (page.map((x) => `<tr>
-      <td>${esc(x.text)}</td>
+    (page.map((x) => `<tr${x.broken ? ' class="qbroken"' : ""}>
+      <td>${esc(x.text)}${cmtMark(x)}</td>
       <td><span class="badge">${esc(x.pool)}</span></td>
       <td>${"ABCD"[x.correct - 1]}</td>
       <td style="white-space:nowrap">
-        <button class="rqedit" data-i="${qs.indexOf(x)}">edit</button>
-        <button class="rqreact primary" data-src="${x.source}" data-qid="${x.id}">Aktivieren</button>
+        ${x.broken ? "" : `<button class="rqedit" data-i="${qs.indexOf(x)}">edit</button>
+        <button class="rqreact primary" data-src="${x.source}" data-qid="${x.id}">Aktivieren</button>`}
         <button class="rqdel danger" data-i="${qs.indexOf(x)}">×</button></td></tr>`).join("")
      || '<tr><td class="muted" colspan="4">Keine gemeldeten Fragen</td></tr>');
   document.getElementById("rqPager").innerHTML = qs.length > RQ_PAGE_SIZE
@@ -654,7 +661,7 @@ async function loadReported() {
     const x = window._rqs[+b.dataset.i];
     if (!(await Dlg.confirm("Frage endgültig löschen?"))) return;
     await api(x.source === "c"
-      ? `/api/categories/${x.category_id}/questions/${x.id}`
+      ? `/api/categories/${x.category_id || 0}/questions/${x.id}`
       : `/api/questions/${x.id}`, "DELETE");
     loadReported(); loadQuestions();
   }));
@@ -743,11 +750,12 @@ document.getElementById("nq_add").onclick = async () => {
     answer3: nq_a3.value, answer4: nq_a4.value,
     correct: checked ? +checked.value : 1,
     skill: +nq_skill.value,
+    comment: nq_comment.value.trim(),
   };
   if (!body.text || !body[`answer${body.correct}`])
     return Dlg.alert("Frage + richtige Antwort ausfüllen");
   await api("/api/questions", "POST", body);
-  ["nq_text", "nq_a1", "nq_a2", "nq_a3", "nq_a4"].forEach((id) => (document.getElementById(id).value = ""));
+  ["nq_text", "nq_a1", "nq_a2", "nq_a3", "nq_a4", "nq_comment"].forEach((id) => (document.getElementById(id).value = ""));
   document.querySelector('input[name="nq_correct"][value="1"]').checked = true;
   taGrow(document.getElementById("nq_text"));
   loadQuestions();

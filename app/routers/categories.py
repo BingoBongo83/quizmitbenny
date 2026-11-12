@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from ..auth import require_admin
-from ..db import get_db
+from ..db import delete_by_id, fetch_tolerant, get_db
 from ..models import Category, CustomQuestion, get_setting, set_setting
-from .questions import _items_from_xlsx
+from .questions import _items_from_xlsx, _question_dict
 
 router = APIRouter(prefix="/api/categories", dependencies=[Depends(require_admin)])
 
@@ -26,6 +26,7 @@ class CustomQuestionBody(BaseModel):
     answer4: str
     correct: int
     skill: int = 1
+    comment: str = ""
 
 
 def _validate_cq(body: CustomQuestionBody):
@@ -107,10 +108,11 @@ def delete_category(cid: int):
 def list_custom_questions(cid: int):
     db = next(get_db())
     try:
-        qs = (db.query(CustomQuestion)
-              .filter(CustomQuestion.category_id == cid)
-              .order_by(CustomQuestion.id.desc()).all())
-        return [q.to_dict(reveal=True) for q in qs]
+        qs = fetch_tolerant(
+            db, db.query(CustomQuestion)
+            .filter(CustomQuestion.category_id == cid)
+            .order_by(CustomQuestion.id.desc()), CustomQuestion)
+        return [_question_dict(q) for q in qs]
     finally:
         db.close()
 
@@ -150,7 +152,13 @@ def update_custom_question(cid: int, qid: int, body: CustomQuestionBody):
 def delete_custom_question(cid: int, qid: int):
     db = next(get_db())
     try:
-        q = db.get(CustomQuestion, qid)
+        try:
+            q = db.get(CustomQuestion, qid)
+        except Exception:
+            # corrupt row – delete by id without materializing it
+            delete_by_id(db, CustomQuestion, qid)
+            db.commit()
+            return {"ok": True}
         if not q or q.category_id != cid:
             raise HTTPException(404)
         db.delete(q)
@@ -163,7 +171,7 @@ def delete_custom_question(cid: int, qid: int):
 @router.post("/{cid}/import")
 async def import_custom_questions(cid: int, file: UploadFile):
     """Same format as the standard import: JSON list, ';' CSV or .xlsx.
-    Fields: text;answer1;answer2;answer3;answer4;correct;skill
+    Fields: text;answer1;answer2;answer3;answer4;correct;skill;comment
     (.xlsx files in the standard-template layout work too – the
     'Kategorie' column is simply ignored.)"""
     db = next(get_db())
@@ -176,8 +184,13 @@ async def import_custom_questions(cid: int, file: UploadFile):
     items = []
     name = (file.filename or "").lower()
     if name.endswith(".xlsx") or raw_bytes[:4] == b"PK\x03\x04":
-        items = [{k: v for k, v in it.items() if k != "category"}
-                 for it in _items_from_xlsx(raw_bytes)]
+        items = []
+        for it, ncols in _items_from_xlsx(raw_bytes):
+            if ncols <= 8:
+                # file without 'Kategorie' column -> last col is the comment
+                it["comment"] = it["category"] or it["comment"]
+            it.pop("category", None)
+            items.append(it)
     else:
         raw = raw_bytes.decode("utf-8-sig")
         if name.endswith(".json") or raw.lstrip().startswith("["):
@@ -197,13 +210,14 @@ async def import_custom_questions(cid: int, file: UploadFile):
             for row in reader:
                 if not row or not row[0].strip() or row[0].startswith("#"):
                     continue
-                row += [""] * (7 - len(row))
+                row += [""] * (8 - len(row))
                 try:
                     items.append({
                         "text": row[0], "answer1": row[1], "answer2": row[2],
                         "answer3": row[3], "answer4": row[4],
                         "correct": int(row[5] or 1),
                         "skill": int(row[6] or 1),
+                        "comment": row[7],
                     })
                 except ValueError:
                     raise HTTPException(

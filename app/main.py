@@ -62,9 +62,11 @@ def _migrate_columns():
         },
         "questions": {
             "reported": "BOOLEAN DEFAULT FALSE",
+            "comment": "TEXT",
         },
         "custom_questions": {
             "reported": "BOOLEAN DEFAULT FALSE",
+            "comment": "TEXT",
         },
     }
     for table, cols in wanted.items():

@@ -25,6 +25,7 @@ class Question(Base):
     correct = Column(Integer, nullable=False)  # 1-4
     skill = Column(Integer, nullable=False, default=1)  # 1-5
     category = Column(String(255), default="")
+    comment = Column(Text)  # moderator trivia shown after the answer
     used = Column(Boolean, default=False)
     used_round_id = Column(Integer, nullable=True)
     reported = Column(Boolean, default=False)  # flagged by moderator, excluded from pools
@@ -39,6 +40,7 @@ class Question(Base):
             "answers": self.answers(),
             "skill": self.skill,
             "category": self.category,
+            "comment": self.comment or "",
             "used": self.used,
             "reported": self.reported,
         }
@@ -69,6 +71,7 @@ class CustomQuestion(Base):
     answer4 = Column(Text, nullable=False)
     correct = Column(Integer, nullable=False)  # 1-4
     skill = Column(Integer, nullable=False, default=1)  # 1-5
+    comment = Column(Text)  # moderator trivia shown after the answer
     used = Column(Boolean, default=False)
     used_round_id = Column(Integer, nullable=True)
     reported = Column(Boolean, default=False)  # flagged by moderator, excluded from pools
@@ -83,6 +86,7 @@ class CustomQuestion(Base):
             "answers": self.answers(),
             "skill": self.skill,
             "category_id": self.category_id,
+            "comment": self.comment or "",
             "used": self.used,
             "reported": self.reported,
         }
